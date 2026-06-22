@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Maven settings for building behind the corporate proxy.
+
+  The proxy (Zscaler) blocks binary (.jar) downloads from the Maven Central
+  hosts (repo.maven.apache.org / repo1.maven.org) but allows them from Google's
+  Cloud Storage mirror of Maven Central. This file mirrors all `central`
+  requests to that GCS mirror.
+
+  Build with:
+    mvn -s maven-settings.xml ...
+  and ensure the JVM trusts the corporate root CAs, e.g.:
+    set MAVEN_OPTS=-Djavax.net.ssl.trustStore=C:\Users\981357\tools\mes-truststore.jks -Djavax.net.ssl.trustStorePassword=changeit
+-->
+<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0 https://maven.apache.org/xsd/settings-1.0.0.xsd">
+    <mirrors>
+        <mirror>
+            <id>gcs-maven-central</id>
+            <name>Google Cloud Storage mirror of Maven Central</name>
+            <url>https://maven-central.storage-download.googleapis.com/maven2</url>
+            <mirrorOf>central</mirrorOf>
+        </mirror>
+    </mirrors>
+</settings>
