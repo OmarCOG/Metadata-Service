@@ -11,6 +11,10 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.mes.models.EnhancedMetadataResponse;
+import com.mes.skills.MetadataEnhancementSkill;
+import org.springframework.beans.factory.annotation.Autowired;
+
 import java.io.UncheckedIOException;
 import java.util.Map;
 
@@ -24,9 +28,30 @@ public class ParserController {
 
     private final FileParserOrchestrator orchestrator;
 
+    @Autowired
+    private MetadataEnhancementSkill metadataEnhancementSkill;
+
     public ParserController(FileParserOrchestrator orchestrator) {
         this.orchestrator = orchestrator;
     }
+
+
+
+    /**
+     * Accepts multipart files, parses, and runs automated compliance and description inference
+     * using Groq Cloud matching the front-end layout schema.
+     */
+    @PostMapping(value = "/upload/enhance")
+    public ResponseEntity<EnhancedMetadataResponse> uploadAndEnhance(@RequestParam("file") MultipartFile file) {
+        // 1. Invoke the existing orchestrator framework parsing
+        ParsedFile parsedFile = orchestrator.parse(file);
+
+        // 2. Process metrics and integrate AI context evaluations
+        EnhancedMetadataResponse enhancedResponse = metadataEnhancementSkill.enhance(parsedFile, file.getOriginalFilename());
+
+        return ResponseEntity.ok(enhancedResponse);
+    }
+
 
     /**
      * Accepts a multipart file upload and returns the parsed, normalized result.
@@ -35,11 +60,11 @@ public class ParserController {
      * @return {@code 200} with the {@link ParsedFile}, or an error status with a
      *         JSON error body
      */
-    @PostMapping(value = "/upload")
-    public ResponseEntity<ParsedFile> upload(@RequestParam("file") MultipartFile file) {
-        ParsedFile parsed = orchestrator.parse(file);
-        return ResponseEntity.ok(parsed);
-    }
+//    @PostMapping(value = "/upload")
+//    public ResponseEntity<ParsedFile> upload(@RequestParam("file") MultipartFile file) {
+//        ParsedFile parsed = orchestrator.parse(file);
+//        return ResponseEntity.ok(parsed);
+//    }
 
     /** Empty file or otherwise invalid argument -> 400 Bad Request. */
     @ExceptionHandler(IllegalArgumentException.class)
