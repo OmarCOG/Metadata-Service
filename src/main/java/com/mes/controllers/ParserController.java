@@ -11,6 +11,9 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.mes.models.EnhancedMetadataResponse;
+import com.mes.skills.MetadataEnhancementSkill;
+
 import java.io.UncheckedIOException;
 import java.util.Map;
 
@@ -23,22 +26,27 @@ import java.util.Map;
 public class ParserController {
 
     private final FileParserOrchestrator orchestrator;
+    private final MetadataEnhancementSkill metadataEnhancementSkill;
 
-    public ParserController(FileParserOrchestrator orchestrator) {
+    public ParserController(FileParserOrchestrator orchestrator,
+                            MetadataEnhancementSkill metadataEnhancementSkill) {
         this.orchestrator = orchestrator;
+        this.metadataEnhancementSkill = metadataEnhancementSkill;
     }
 
     /**
-     * Accepts a multipart file upload and returns the parsed, normalized result.
-     *
-     * @param file the uploaded file (form field {@code file})
-     * @return {@code 200} with the {@link ParsedFile}, or an error status with a
-     *         JSON error body
+     * Accepts multipart files, parses them, and runs automated compliance and description
+     * inference via the Anthropic Claude API, matching the front-end layout schema.
      */
-    @PostMapping(value = "/upload")
-    public ResponseEntity<ParsedFile> upload(@RequestParam("file") MultipartFile file) {
-        ParsedFile parsed = orchestrator.parse(file);
-        return ResponseEntity.ok(parsed);
+    @PostMapping(value = "/upload/enhance")
+    public ResponseEntity<EnhancedMetadataResponse> uploadAndEnhance(@RequestParam("file") MultipartFile file) {
+        // 1. Invoke the existing orchestrator framework parsing
+        ParsedFile parsedFile = orchestrator.parse(file);
+
+        // 2. Process metrics and integrate AI context evaluations
+        EnhancedMetadataResponse enhancedResponse = metadataEnhancementSkill.enhance(parsedFile, file.getOriginalFilename());
+
+        return ResponseEntity.ok(enhancedResponse);
     }
 
     /** Empty file or otherwise invalid argument -> 400 Bad Request. */
