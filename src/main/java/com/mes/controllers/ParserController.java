@@ -13,7 +13,6 @@ import org.springframework.web.multipart.MultipartFile;
 
 import com.mes.models.EnhancedMetadataResponse;
 import com.mes.skills.MetadataEnhancementSkill;
-import org.springframework.beans.factory.annotation.Autowired;
 
 import java.io.UncheckedIOException;
 import java.util.Map;
@@ -27,19 +26,17 @@ import java.util.Map;
 public class ParserController {
 
     private final FileParserOrchestrator orchestrator;
+    private final MetadataEnhancementSkill metadataEnhancementSkill;
 
-    @Autowired
-    private MetadataEnhancementSkill metadataEnhancementSkill;
-
-    public ParserController(FileParserOrchestrator orchestrator) {
+    public ParserController(FileParserOrchestrator orchestrator,
+                            MetadataEnhancementSkill metadataEnhancementSkill) {
         this.orchestrator = orchestrator;
+        this.metadataEnhancementSkill = metadataEnhancementSkill;
     }
 
-
-
     /**
-     * Accepts multipart files, parses, and runs automated compliance and description inference
-     * using Groq Cloud matching the front-end layout schema.
+     * Accepts multipart files, parses them, and runs automated compliance and description
+     * inference via the Anthropic Claude API, matching the front-end layout schema.
      */
     @PostMapping(value = "/upload/enhance")
     public ResponseEntity<EnhancedMetadataResponse> uploadAndEnhance(@RequestParam("file") MultipartFile file) {
@@ -51,20 +48,6 @@ public class ParserController {
 
         return ResponseEntity.ok(enhancedResponse);
     }
-
-
-    /**
-     * Accepts a multipart file upload and returns the parsed, normalized result.
-     *
-     * @param file the uploaded file (form field {@code file})
-     * @return {@code 200} with the {@link ParsedFile}, or an error status with a
-     *         JSON error body
-     */
-//    @PostMapping(value = "/upload")
-//    public ResponseEntity<ParsedFile> upload(@RequestParam("file") MultipartFile file) {
-//        ParsedFile parsed = orchestrator.parse(file);
-//        return ResponseEntity.ok(parsed);
-//    }
 
     /** Empty file or otherwise invalid argument -> 400 Bad Request. */
     @ExceptionHandler(IllegalArgumentException.class)
