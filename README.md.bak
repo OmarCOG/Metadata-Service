@@ -1,0 +1,105 @@
+# Exchange Metadata Extraction Service — Frontend
+
+A React-based web UI for the Capital One Exchange Metadata Extraction Service.  
+Maps directly to **US-01** (File Upload UI) from the PRD and covers all user-facing steps in Section 7.
+
+---
+
+## Quick Start
+
+```bash
+cd metadata-extraction-ui
+npm install
+npm run dev
+```
+
+Open `http://localhost:5173`
+
+---
+
+## Project Structure
+
+```
+metadata-extraction-ui/
+├── index.html
+├── vite.config.js
+├── package.json
+└── src/
+    ├── main.jsx              # React entry point
+    ├── App.jsx               # Root — step state machine (Upload → Preview → Download)
+    ├── styles.css            # Global design system (tokens, components)
+    ├── components/
+    │   ├── Header.jsx        # Sticky top nav with branding
+    │   └── StepIndicator.jsx # 3-step progress bar
+    ├── pages/
+    │   ├── UploadPage.jsx    # Step 1 — drag-and-drop file upload
+    │   ├── PreviewPage.jsx   # Step 2 — metadata table with inline edit
+    │   └── DownloadPage.jsx  # Step 3 — JSON/CSV/PDF download + Exchange submit
+    └── utils/
+        ├── parser.js         # Client-side file parsing + metadata profiling
+        └── downloader.js     # JSON, CSV, and PDF (print) download helpers
+```
+
+---
+
+## Feature Coverage
+
+| PRD Section | Feature | Implemented |
+|-------------|---------|-------------|
+| §3.1 | Multi-format upload (JSON, CSV, XML) | ✅ |
+| §3.1 | File type detection & validation | ✅ |
+| §3.1 | Field-level metadata extraction | ✅ |
+| §5   | Full metadata schema (all 13 fields) | ✅ |
+| §7   | 7-step user flow | ✅ |
+| §6.1 | `/api/download/json` | ✅ (client-side) |
+| §6.1 | `/api/download/csv`  | ✅ (client-side) |
+| §6.1 | `/api/download/pdf`  | ✅ (print dialog) |
+| §6.1 | `/api/exchange/submit` mock | ✅ |
+| §3.2 | No auth / no persistence (Phase 1) | ✅ |
+
+---
+
+## Parser Capabilities
+
+`src/utils/parser.js` runs entirely in the browser with no dependencies:
+
+- **Type inference**: string, integer, float, boolean, date, object, array, null
+- **Tag inference**: identifier, temporal, financial, personal, contact, categorical, metric, freetext, flag, geographic
+- **PCI detection**: card, pan, cvv, expiry, account_num patterns
+- **NPI detection**: ssn, dob, passport, license, patient patterns
+- **Auto-descriptions**: plain-language field summaries from name + inferred tags
+- **Stats**: null_count, unique_count, sample_values (up to 5)
+
+---
+
+## Design System
+
+Dark-mode UI with:
+- **Palette**: Deep navy `#0d0f14` background · Blue `#3b82f6` accent · Green `#22c55e` success
+- **Type**: Syne (display headings) · Inter (body) · IBM Plex Mono (code/data)
+- **Signature element**: Colored type pills per data type in the metadata table
+
+---
+
+## Adding Excel / Parquet Support
+
+Install the `xlsx` library:
+
+```bash
+npm install xlsx
+```
+
+Then update `src/utils/parser.js`:
+
+```js
+import * as XLSX from "xlsx";
+
+async function parseExcel(file) {
+  const buf  = await file.arrayBuffer();
+  const wb   = XLSX.read(buf, { type: "array" });
+  const ws   = wb.Sheets[wb.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(ws, { defval: null });
+  const keys = Object.keys(rows[0] || {});
+  return { rows, keys };
+}
+```
