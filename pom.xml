@@ -21,6 +21,7 @@
         <java.version>17</java.version>
         <poi.version>5.2.3</poi.version>
         <jackson.xml.version>2.15.2</jackson.xml.version>
+        <anthropic.version>2.34.0</anthropic.version>
     </properties>
 
     <dependencies>
@@ -41,6 +42,13 @@
             <groupId>com.fasterxml.jackson.dataformat</groupId>
             <artifactId>jackson-dataformat-xml</artifactId>
             <version>${jackson.xml.version}</version>
+        </dependency>
+
+        <!-- Official Anthropic Java SDK for Claude metadata enrichment -->
+        <dependency>
+            <groupId>com.anthropic</groupId>
+            <artifactId>anthropic-java</artifactId>
+            <version>${anthropic.version}</version>
         </dependency>
 
         <dependency>
