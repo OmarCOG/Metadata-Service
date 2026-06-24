@@ -1,6 +1,9 @@
 package com.mes.orchestrator;
 
+import com.mes.agents.CsvParserAgent;
 import com.mes.agents.ExcelParserAgent;
+import com.mes.agents.JsonParserAgent;
+import com.mes.agents.ParquetParserAgent;
 import com.mes.agents.XmlParserAgent;
 import com.mes.models.ParsedFile;
 import com.mes.skills.FileFormatDetectionSkill;
@@ -21,13 +24,22 @@ public class FileParserOrchestrator {
     private final FileFormatDetectionSkill formatDetectionSkill;
     private final ExcelParserAgent excelParserAgent;
     private final XmlParserAgent xmlParserAgent;
+    private final CsvParserAgent csvParserAgent;
+    private final JsonParserAgent jsonParserAgent;
+    private final ParquetParserAgent parquetParserAgent;
 
     public FileParserOrchestrator(FileFormatDetectionSkill formatDetectionSkill,
                                   ExcelParserAgent excelParserAgent,
-                                  XmlParserAgent xmlParserAgent) {
+                                  XmlParserAgent xmlParserAgent,
+                                  CsvParserAgent csvParserAgent,
+                                  JsonParserAgent jsonParserAgent,
+                                  ParquetParserAgent parquetParserAgent) {
         this.formatDetectionSkill = formatDetectionSkill;
         this.excelParserAgent = excelParserAgent;
         this.xmlParserAgent = xmlParserAgent;
+        this.csvParserAgent = csvParserAgent;
+        this.jsonParserAgent = jsonParserAgent;
+        this.parquetParserAgent = parquetParserAgent;
     }
 
     /**
@@ -52,6 +64,12 @@ public class FileParserOrchestrator {
                     return excelParserAgent.parse(in);
                 case "xml":
                     return xmlParserAgent.parse(in);
+                case "csv":
+                    return csvParserAgent.parse(in);
+                case "json":
+                    return jsonParserAgent.parse(in);
+                case "parquet":
+                    return parquetParserAgent.parse(in);
                 default:
                     throw new UnsupportedOperationException(
                             "Unsupported or unrecognized file format: '" + format + "'");

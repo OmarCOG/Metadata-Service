@@ -9,23 +9,25 @@ import java.util.Set;
  * Detects the logical file format from a file name (extension) and/or its
  * MIME / content type.
  *
- * <p>Supported formats: {@code json}, {@code csv}, {@code xml}, {@code xlsx}.
- * When the format cannot be determined the literal {@code "unknown"} is
- * returned; routing decisions are left to the orchestrator.</p>
+ * <p>Supported formats: {@code json}, {@code csv}, {@code xml}, {@code xlsx},
+ * {@code parquet}. When the format cannot be determined the literal
+ * {@code "unknown"} is returned; routing decisions are left to the
+ * orchestrator.</p>
  */
 @Component
 public class FileFormatDetectionSkill {
 
     public static final String UNKNOWN = "unknown";
 
-    private static final Set<String> SUPPORTED = Set.of("json", "csv", "xml", "xlsx");
+    private static final Set<String> SUPPORTED = Set.of("json", "csv", "xml", "xlsx", "parquet");
 
     /** Maps a file extension to the canonical format identifier. */
     private static final Map<String, String> EXTENSION_FORMATS = Map.of(
             "json", "json",
             "csv", "csv",
             "xml", "xml",
-            "xlsx", "xlsx"
+            "xlsx", "xlsx",
+            "parquet", "parquet"
     );
 
     /** Maps common MIME / content types to the canonical format identifier. */
@@ -35,7 +37,9 @@ public class FileFormatDetectionSkill {
             "application/csv", "csv",
             "application/xml", "xml",
             "text/xml", "xml",
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "xlsx"
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "xlsx",
+            "application/vnd.apache.parquet", "parquet",
+            "application/x-parquet", "parquet"
     );
 
     /**

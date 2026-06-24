@@ -1,6 +1,13 @@
 # Maven build output
 target/
 
+# Node / frontend build output
+node_modules/
+dist/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
 # IntelliJ IDEA
 .idea/
 *.iml

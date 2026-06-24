@@ -35,6 +35,17 @@ public class ParserController {
     }
 
     /**
+     * Accepts a multipart file, detects its format, routes it to the matching
+     * parser agent, and returns the normalized {@link ParsedFile} as JSON. This
+     * is the format-agnostic contract consumed by the downstream Metadata
+     * Extraction Engine.
+     */
+    @PostMapping(value = "/upload")
+    public ResponseEntity<ParsedFile> upload(@RequestParam("file") MultipartFile file) {
+        return ResponseEntity.ok(orchestrator.parse(file));
+    }
+
+    /**
      * Accepts multipart files, parses them, and runs automated compliance and description
      * inference via the Anthropic Claude API, matching the front-end layout schema.
      */

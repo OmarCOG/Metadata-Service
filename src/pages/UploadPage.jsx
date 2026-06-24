@@ -1,7 +1,9 @@
 import { useState, useRef, useCallback } from "react";
-import { parseFile, formatBytes } from "../utils/parser";
+import { formatBytes } from "../utils/parser";
+import { analyzeFile } from "../utils/api";
 
-const SUPPORTED = ["json", "csv", "tsv", "xml", "xlsx", "xls", "parquet"];
+// Formats the backend can parse (FileFormatDetectionSkill).
+const SUPPORTED = ["json", "csv", "xml", "xlsx", "parquet"];
 
 export default function UploadPage({ onMetadataReady }) {
   const [dragOver, setDragOver] = useState(false);
@@ -15,7 +17,7 @@ export default function UploadPage({ onMetadataReady }) {
     setError("");
     const ext = f.name.split(".").pop().toLowerCase();
     if (!SUPPORTED.includes(ext)) {
-      setError(`Unsupported file type: .${ext}. Accepted: JSON, CSV, XML, Excel, Parquet.`);
+      setError(`Unsupported file type: .${ext}. Accepted: JSON, CSV, XML, Excel (.xlsx), Parquet.`);
       return;
     }
     setFile(f);
@@ -47,11 +49,9 @@ export default function UploadPage({ onMetadataReady }) {
     setLoading(true);
     setError("");
     try {
-      // TODO: replace with backend call
-      // const form = new FormData(); form.append("file", file);
-      // const res = await fetch("/api/upload", { method: "POST", body: form });
-      // const metadata = await res.json();
-      const metadata = await parseFile(file);
+      // Send to the Spring Boot backend, which parses + enriches via Claude
+      // and returns field-level metadata.
+      const metadata = await analyzeFile(file);
       onMetadataReady(metadata, file.name);
     } catch (err) {
       setError(err.message || "Failed to parse file.");
@@ -86,7 +86,7 @@ export default function UploadPage({ onMetadataReady }) {
         <input
           ref={inputRef}
           type="file"
-          accept=".json,.csv,.tsv,.xml,.xlsx,.xls,.parquet"
+          accept=".json,.csv,.xml,.xlsx,.parquet"
           onChange={onInputChange}
           style={{ display: "none" }}
           tabIndex={-1}
