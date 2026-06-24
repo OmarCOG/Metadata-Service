@@ -35,7 +35,7 @@ export default function PreviewPage({ metadata, onProceed, onBack }) {
           <h1 className="page-heading">Review Metadata</h1>
           <p className="page-sub">
             Inspect all extracted fields.&nbsp;
-            <span style={{ color: "#2563eb", fontWeight: 500 }}>Click any description cell to edit it inline.</span>
+            <span style={{ color: "#103a63", fontWeight: 500 }}>Click any description cell to edit it inline.</span>
           </p>
         </div>
         <div className="preview-stats">
@@ -90,7 +90,7 @@ export default function PreviewPage({ metadata, onProceed, onBack }) {
               outline: "none",
               boxSizing: "border-box",
             }}
-            onFocus={e => { e.target.style.borderColor = "#2563eb"; e.target.style.boxShadow = "0 0 0 3px rgba(37,99,235,0.12)"; }}
+            onFocus={e => { e.target.style.borderColor = "#103a63"; e.target.style.boxShadow = "0 0 0 3px rgba(16,58,99,0.14)"; }}
             onBlur={e  => { e.target.style.borderColor = "#cbd5e1"; e.target.style.boxShadow = "none"; }}
           />
           {search && (
@@ -195,8 +195,8 @@ export default function PreviewPage({ metadata, onProceed, onBack }) {
                         style={{
                           width: "100%",
                           background: "#ffffff",
-                          color: "#1d4ed8",
-                          border: "2px solid #2563eb",
+                          color: "#0a2a4a",
+                          border: "2px solid #103a63",
                           borderRadius: 6,
                           padding: "6px 8px",
                           fontSize: 13,
@@ -204,17 +204,17 @@ export default function PreviewPage({ metadata, onProceed, onBack }) {
                           lineHeight: 1.5,
                           resize: "vertical",
                           outline: "none",
-                          boxShadow: "0 0 0 3px rgba(37,99,235,0.15)",
+                          boxShadow: "0 0 0 3px rgba(16,58,99,0.16)",
                         }}
                       />
                     ) : (
                       <div
                         style={{ display: "flex", alignItems: "flex-start", gap: 5, padding: "3px 2px", borderRadius: 4, border: "1px dashed transparent", transition: "border-color 0.15s" }}
-                        onMouseEnter={e => e.currentTarget.style.borderColor = "#2563eb"}
+                        onMouseEnter={e => e.currentTarget.style.borderColor = "#103a63"}
                         onMouseLeave={e => e.currentTarget.style.borderColor = "transparent"}
                       >
                         <span style={{ fontSize: 13, color: "var(--text-1)", lineHeight: 1.5, flex: 1 }}>{field.description}</span>
-                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#103a63" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
                           style={{ flexShrink: 0, marginTop: 3, opacity: 0.4 }}>
                           <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
                           <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>

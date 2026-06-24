@@ -68,19 +68,19 @@ export function downloadPDF(metadata) {
 <style>
   @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap');
   body { font-family: 'Inter', sans-serif; font-size: 11px; color: #1a1f2e; margin: 0; padding: 32px 40px; }
-  header { border-bottom: 2px solid #2563eb; padding-bottom: 16px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: flex-end; }
+  header { border-bottom: 2px solid #b08d57; padding-bottom: 16px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: flex-end; }
   h1 { font-size: 20px; font-weight: 700; margin: 0; color: #0f172a; }
   .meta-row { display: flex; gap: 24px; margin-bottom: 20px; }
-  .meta-chip { background: #f1f5ff; border: 1px solid #dbeafe; border-radius: 6px; padding: 6px 12px; }
+  .meta-chip { background: #f4f6fa; border: 1px solid #dde4ee; border-radius: 6px; padding: 6px 12px; }
   .meta-chip label { display: block; font-size: 9px; text-transform: uppercase; letter-spacing: 0.8px; color: #64748b; }
-  .meta-chip span { font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 500; color: #2563eb; }
+  .meta-chip span { font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 500; color: #103a63; }
   table { width: 100%; border-collapse: collapse; font-size: 10px; }
   thead { background: #f8faff; }
   th { padding: 8px 10px; text-align: left; font-size: 9px; text-transform: uppercase; letter-spacing: 0.6px; color: #64748b; border-bottom: 1px solid #e2e8f0; white-space: nowrap; }
   td { padding: 7px 10px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
   tr:nth-child(even) td { background: #f8faff; }
   .mono { font-family: 'IBM Plex Mono', monospace; }
-  .accent { color: #2563eb; }
+  .accent { color: #103a63; }
   .small { font-size: 9px; color: #64748b; }
   .pill { font-family: 'IBM Plex Mono', monospace; font-size: 9px; padding: 1px 6px; border-radius: 3px; font-weight: 500; }
   .pill-string  { background: #dbeafe; color: #1d4ed8; }

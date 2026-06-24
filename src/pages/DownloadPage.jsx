@@ -15,7 +15,7 @@ const iStyle = {
   transition: "border-color 0.15s, box-shadow 0.15s",
 };
 const lStyle   = { display: "block", fontSize: 13, fontWeight: 500, color: "#374151", marginBottom: 6 };
-const focusIn  = e => { e.target.style.borderColor = "#2563eb"; e.target.style.boxShadow = "0 0 0 3px rgba(37,99,235,0.12)"; };
+const focusIn  = e => { e.target.style.borderColor = "#103a63"; e.target.style.boxShadow = "0 0 0 3px rgba(16,58,99,0.14)"; };
 const focusOut = e => { e.target.style.borderColor = "#e2e8f0"; e.target.style.boxShadow = "none"; };
 
 const FORMAT_OPTIONS = [
@@ -290,8 +290,8 @@ export default function DownloadPage({ metadata, onReset, onBack }) {
                     <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
                   </svg>
                 </button>
-                <div style={{ width: 52, height: 52, background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 20 }}>
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <div style={{ width: 52, height: 52, background: "#eef2f7", border: "1px solid #cdd6e3", borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 20 }}>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#103a63" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
                   </svg>
                 </div>
@@ -346,11 +346,11 @@ export default function DownloadPage({ metadata, onReset, onBack }) {
               <div style={{ textAlign: "center", padding: "16px 0 8px" }}>
                 <div style={{ width: 64, height: 64, margin: "0 auto 24px", position: "relative" }}>
                   <svg width="64" height="64" viewBox="0 0 64 64" style={{ position: "absolute", inset: 0, animation: "spin 1.2s linear infinite" }}>
-                    <circle cx="32" cy="32" r="28" fill="none" stroke="#dbeafe" strokeWidth="5"/>
-                    <circle cx="32" cy="32" r="28" fill="none" stroke="#2563eb" strokeWidth="5" strokeLinecap="round" strokeDasharray="50 126"/>
+                    <circle cx="32" cy="32" r="28" fill="none" stroke="#e7ecf3" strokeWidth="5"/>
+                    <circle cx="32" cy="32" r="28" fill="none" stroke="#103a63" strokeWidth="5" strokeLinecap="round" strokeDasharray="50 126"/>
                   </svg>
                   <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#103a63" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
                     </svg>
                   </div>
