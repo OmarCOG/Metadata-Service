@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { downloadJSON, downloadCSV, downloadPDF } from "../utils/downloader";
 
 const iStyle = {
   width: "100%",
@@ -66,9 +67,16 @@ export default function DownloadPage({ metadata, onReset, onBack }) {
   const closeModal = () => { if (modalStep !== "processing") setModalStep(null); };
 
   const handleFormatSelect = (key) => {
-    // TODO: connect to backend — e.g. fetch(`/api/download/${key}?session_id=...`)
+    // Exports are generated client-side from the metadata the backend already
+    // returned for this upload — no extra round-trip needed.
     setShowDropdown(false);
-    alert(`Format selected: ${key.toUpperCase()} — will be connected to backend.`);
+    try {
+      if (key === "json") downloadJSON(metadata);
+      else if (key === "csv") downloadCSV(metadata);
+      else if (key === "pdf") downloadPDF(metadata);
+    } catch (err) {
+      alert(`Download failed: ${err.message || err}`);
+    }
   };
 
   const handleSubmit = async () => {
