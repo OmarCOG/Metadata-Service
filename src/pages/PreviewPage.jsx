@@ -66,8 +66,39 @@ export default function PreviewPage({ metadata, onProceed, onBack }) {
         </div>
       </div>
 
+      {/* ── PCI / NPI warning banner — only when sensitive fields are detected ── */}
+      {(pciCount > 0 || npiCount > 0) && (
+        <div
+          role="alert"
+          style={{
+            display: "flex",
+            alignItems: "flex-start",
+            gap: 10,
+            background: "var(--amber-dim)",
+            border: "1px solid rgba(183,121,31,0.4)",
+            borderRadius: "var(--radius)",
+            padding: "12px 16px",
+            margin: "0 0 16px 0",
+            fontSize: 13,
+            color: "var(--amber)",
+          }}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 1 }}>
+            <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+          <span>
+            <strong>Sensitive data detected.</strong>{" "}
+            {pciCount > 0 && <>{pciCount} field{pciCount > 1 ? "s" : ""} flagged as <strong>PCI</strong> (payment card data)</>}
+            {pciCount > 0 && npiCount > 0 && " · "}
+            {npiCount > 0 && <>{npiCount} field{npiCount > 1 ? "s" : ""} flagged as <strong>NPI</strong> (non-public personal data)</>}
+            . Review handling before submitting to the Exchange.
+          </span>
+        </div>
+      )}
+
       {/* ── Search bar — sits between header and table ── */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "0 0 16px 0" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "0 0 16px 0", flexWrap: "wrap" }}>
         <div style={{ position: "relative", flex: 1, maxWidth: 420 }}>
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round"
             style={{ position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}>
@@ -124,6 +155,20 @@ export default function PreviewPage({ metadata, onProceed, onBack }) {
       {/* ── Table ── */}
       <div className="table-wrapper">
         <table>
+          {/* Proportional widths (sum 100%) — with table-layout: fixed these keep
+              the table at exactly 100% of its wrapper so it never forces a page scroll. */}
+          <colgroup>
+            <col style={{ width: "3%" }} />
+            <col style={{ width: "14%" }} />
+            <col style={{ width: "8%" }} />
+            <col style={{ width: "7%" }} />
+            <col style={{ width: "5%" }} />
+            <col style={{ width: "6%" }} />
+            <col style={{ width: "16%" }} />
+            <col style={{ width: "11%" }} />
+            <col style={{ width: "22%" }} />
+            <col style={{ width: "8%" }} />
+          </colgroup>
           <thead>
             <tr>
               <th>#</th>
@@ -181,7 +226,7 @@ export default function PreviewPage({ metadata, onProceed, onBack }) {
                   </td>
                   {/* Editable description */}
                   <td
-                    style={{ minWidth: 200, cursor: isEditing ? "default" : "pointer" }}
+                    style={{ maxWidth: "100%", cursor: isEditing ? "default" : "pointer" }}
                     onClick={() => !isEditing && handleCellClick(realIdx)}
                     title="Click to edit"
                   >

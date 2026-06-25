@@ -64,14 +64,21 @@ body {
 }
 
 /* ─── App Shell ──────────────────────────────────────────── */
-.app-shell { min-height: 100vh; display: flex; flex-direction: column; }
+/* overflow-x: hidden guarantees the page never scrolls sideways; any
+   intentionally-wide content (the metadata table) scrolls inside its own box. */
+.app-shell { min-height: 100vh; display: flex; flex-direction: column; overflow-x: hidden; }
 
+/* Single-column flex layout: each section (steps, stats, banner, table,
+   actions) stacks vertically and stretches to the container width. */
 .main-content {
   flex: 1;
+  display: flex;
+  flex-direction: column;
   max-width: 1120px;
   width: 100%;
   margin: 0 auto;
-  padding: 36px 24px 96px;
+  /* Horizontal 1rem keeps content off the screen edges on narrow viewports. */
+  padding: 36px 1rem 96px;
 }
 
 /* ─── Header — deep navy band with gold hairline ─────────── */
@@ -475,6 +482,10 @@ body {
 
 table {
   width: 100%;
+  /* fixed layout makes columns honor their assigned widths instead of growing
+     to fit content, so the table fills its wrapper exactly and never forces
+     the page wider. Long cell content wraps (see word-break on td below). */
+  table-layout: fixed;
   border-collapse: collapse;
   background: var(--surface);
 }
@@ -495,7 +506,8 @@ th {
   letter-spacing: 0.9px;
   padding: 14px 16px;
   text-align: left;
-  white-space: nowrap;
+  /* wrap headers (instead of nowrap) so narrow fixed-layout columns stay put */
+  white-space: normal;
 }
 
 td {
@@ -504,6 +516,9 @@ td {
   font-size: 13px;
   color: var(--text-1);
   vertical-align: top;
+  /* break long tokens so they stay within their fixed-width column */
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 tr:last-child td { border-bottom: none; }
@@ -553,7 +568,9 @@ tr:hover td { background: rgba(16,58,99,0.025); }
   font-family: var(--font-mono);
   font-size: 11px;
   color: var(--text-2);
-  white-space: nowrap;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .tag-list { display: flex; flex-wrap: wrap; gap: 4px; }
@@ -600,7 +617,7 @@ tr:hover td { background: rgba(16,58,99,0.025); }
   font-family: var(--font-body);
   font-size: 13px;
   width: 100%;
-  min-width: 180px;
+  max-width: 100%;
   resize: none;
   transition: border-color 0.15s;
   line-height: 1.5;
