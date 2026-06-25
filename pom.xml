@@ -31,6 +31,27 @@
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
 
+        <!-- Spring Data JPA: persists the registered-dataset catalogue.
+             DB-agnostic — H2 (file) is used locally, MySQL under the 'aws' profile. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+
+        <!-- H2: default local datasource (file-based, persists across restarts). -->
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
+        <!-- MySQL driver: only used when the 'aws' profile is active (RDS). -->
+        <dependency>
+            <groupId>com.mysql</groupId>
+            <artifactId>mysql-connector-j</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
         <!-- Apache POI for xlsx parsing -->
         <dependency>
             <groupId>org.apache.poi</groupId>
