@@ -29,10 +29,11 @@ Start the **backend first** (port **8050**); the frontend dev server proxies
   a file-based H2 DB at `./data/mes-catalogue` (inspect at
   http://localhost:8050/h2-console). For AWS, activate the `aws` profile for
   MySQL/RDS (`application-aws.properties`).
-- **Frontend:**
+- **Frontend:** a pure **Vite** app (React 18) — no Create React App / `react-scripts`.
   ```bash
   npm install      # first time
   npm run dev      # http://localhost:3000  (proxies /api -> :8050)
+  npm run build    # production build to dist/
   ```
 
 ## API
