@@ -52,7 +52,9 @@ export default function UploadPage({ onMetadataReady }) {
       // Send to the Spring Boot backend, which parses + enriches via Claude
       // and returns field-level metadata.
       const metadata = await analyzeFile(file);
-      onMetadataReady(metadata, file.name);
+      // Pass the original File too — the Download step needs it to register the
+      // dataset (with its raw bytes) in the catalogue.
+      onMetadataReady(metadata, file.name, file);
     } catch (err) {
       setError(err.message || "Failed to parse file.");
     } finally {
