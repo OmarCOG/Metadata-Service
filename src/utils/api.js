@@ -150,18 +150,23 @@ export async function submitToCatalogue({ file, title, description, owner, metad
   return res.json();
 }
 
-/** Fetches the catalogue listing (lightweight summaries, newest first). */
+/**
+ * Fetches the catalogue listing (lightweight summaries, newest first).
+ * The backend returns a paged envelope; we request a large page and return the
+ * content array (the page keeps client-side search/filter working unchanged).
+ */
 export async function fetchCatalogue() {
   let res;
   try {
-    res = await fetch(CATALOGUE_ENDPOINT);
+    res = await fetch(`${CATALOGUE_ENDPOINT}?size=1000`);
   } catch {
     throw new Error(
       "Could not reach the metadata service. Make sure the backend is running on port 8050."
     );
   }
   if (!res.ok) throw new Error(`Failed to load the catalogue (${res.status}).`);
-  return res.json(); // array of camelCase CatalogueSummary
+  const data = await res.json();
+  return Array.isArray(data) ? data : (data.content ?? []);
 }
 
 /**
