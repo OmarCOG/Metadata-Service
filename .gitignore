@@ -1,6 +1,11 @@
 # Maven build output
 target/
 
+# Local H2 catalogue database (created at runtime by the default profile)
+data/
+*.mv.db
+*.trace.db
+
 # Node / frontend build output
 node_modules/
 dist/

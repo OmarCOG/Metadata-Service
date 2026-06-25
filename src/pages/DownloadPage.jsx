@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { downloadJSON, downloadCSV, downloadPDF } from "../utils/downloader";
+import { submitToCatalogue } from "../utils/api";
 
 const iStyle = {
   width: "100%",
@@ -54,16 +55,21 @@ const FORMAT_OPTIONS = [
   },
 ];
 
-export default function DownloadPage({ metadata, onReset, onBack }) {
+export default function DownloadPage({ metadata, originalFile, onReset, onBack, onViewCatalogue }) {
   const [showDropdown, setShowDropdown] = useState(false);
 
   // Exchange modal
   const [modalStep, setModalStep]   = useState(null);
-  const [form, setForm]             = useState({ accountName: "", email: "", role: "" });
+  const [form, setForm]             = useState({ title: "", description: "", accountName: "", email: "", role: "" });
   const [formError, setFormError]   = useState("");
   const [exchangeId, setExchangeId] = useState("");
 
-  const openModal  = () => { setModalStep("form"); setFormError(""); setForm({ accountName: "", email: "", role: "" }); };
+  const openModal  = () => {
+    setModalStep("form");
+    setFormError("");
+    // Pre-fill the dataset title from the source file name for convenience.
+    setForm({ title: metadata.source_file || "", description: "", accountName: "", email: "", role: "" });
+  };
   const closeModal = () => { if (modalStep !== "processing") setModalStep(null); };
 
   const handleFormatSelect = (key) => {
@@ -80,21 +86,32 @@ export default function DownloadPage({ metadata, onReset, onBack }) {
   };
 
   const handleSubmit = async () => {
+    if (!form.title.trim()) {
+      setFormError("Dataset title is required."); return;
+    }
     if (!form.accountName.trim() || !form.email.trim() || !form.role.trim()) {
-      setFormError("All fields are required."); return;
+      setFormError("Account name, email and role are required."); return;
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
       setFormError("Please enter a valid email address."); return;
     }
+    if (!originalFile) {
+      setFormError("The original file is no longer available — please start over and re-upload."); return;
+    }
     setFormError("");
     setModalStep("processing");
     try {
-      // TODO: await fetch("/api/exchange/submit", { method:"POST", body: JSON.stringify({...form, metadata}) })
-      await new Promise(r => setTimeout(r, 2000));
-      setExchangeId("EXC-" + Math.random().toString(36).substring(2, 10).toUpperCase());
+      const res = await submitToCatalogue({
+        file: originalFile,
+        title: form.title.trim(),
+        description: form.description.trim(),
+        owner: { accountName: form.accountName.trim(), email: form.email.trim(), role: form.role.trim() },
+        metadata,
+      });
+      setExchangeId(res.exchangeId || ("EXC-" + res.id));
       setModalStep("done");
-    } catch {
-      setFormError("Submission failed. Please try again.");
+    } catch (err) {
+      setFormError(err.message || "Submission failed. Please try again.");
       setModalStep("form");
     }
   };
@@ -301,6 +318,14 @@ export default function DownloadPage({ metadata, onReset, onBack }) {
                 </p>
                 <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
                   <div>
+                    <label style={lStyle}>Dataset Title <span style={{ color: "#ef4444" }}>*</span></label>
+                    <input type="text" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g. Q3 Customer Transactions" style={iStyle} onFocus={focusIn} onBlur={focusOut} />
+                  </div>
+                  <div>
+                    <label style={lStyle}>Description</label>
+                    <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="What this dataset contains, its source, and intended use…" rows={3} style={{ ...iStyle, resize: "vertical", lineHeight: 1.5 }} onFocus={focusIn} onBlur={focusOut} />
+                  </div>
+                  <div>
                     <label style={lStyle}>Account Name <span style={{ color: "#ef4444" }}>*</span></label>
                     <input type="text" value={form.accountName} onChange={e => setForm(f => ({ ...f, accountName: e.target.value }))} placeholder="e.g. Capital One Data Team" style={iStyle} onFocus={focusIn} onBlur={focusOut} />
                   </div>
@@ -379,6 +404,7 @@ export default function DownloadPage({ metadata, onReset, onBack }) {
                   <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
                     {[
                       { label: "Exchange ID", val: exchangeId, mono: true, green: true },
+                      { label: "Title",       val: form.title },
                       { label: "Account",     val: form.accountName },
                       { label: "Email",       val: form.email },
                       { label: "Role",        val: form.role },
@@ -391,9 +417,16 @@ export default function DownloadPage({ metadata, onReset, onBack }) {
                     ))}
                   </div>
                 </div>
-                <button className="btn btn-primary" onClick={() => setModalStep(null)} style={{ width: "100%", marginTop: 8, justifyContent: "center" }}>
-                  Done
-                </button>
+                <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
+                  <button className="btn btn-ghost" onClick={() => setModalStep(null)} style={{ flex: 1, justifyContent: "center" }}>
+                    Done
+                  </button>
+                  {onViewCatalogue && (
+                    <button className="btn btn-primary" onClick={() => { setModalStep(null); onViewCatalogue(); }} style={{ flex: 1, justifyContent: "center" }}>
+                      View in Catalogue
+                    </button>
+                  )}
+                </div>
               </div>
             )}
           </div>
