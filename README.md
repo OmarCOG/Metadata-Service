@@ -1,58 +1,65 @@
-# MES PoC — XML & Excel Parser Module
+# Metadata Extraction Service (MES)
 
-Metadata Extraction Service parser module (Java 17 / Spring Boot 3.2.5). Accepts
-an uploaded file, detects its format, parses it into a normalized `ParsedFile`,
-and returns it as JSON for the downstream Metadata Extraction Engine.
+Upload a data file (xlsx / xml / csv / json / parquet); the service parses it into
+a normalized `ParsedFile`, enriches it with Claude (per-field descriptions, tags,
+PCI/NPI/PHI flags), and lets you register the result in a browsable, searchable
+**dataset catalogue**. Java 17 / Spring Boot 3.2.5 backend + React (Vite) frontend.
 
-## Package layout (`com.mes`)
+## Structure
 
-| Package        | Class                       | Responsibility |
-|----------------|-----------------------------|----------------|
-| `models`       | `ParsedFile`                | Normalized output: `fileFormat`, `fieldNames`, `records`. |
-| `skills`       | `FileFormatDetectionSkill`  | Detects `json` / `csv` / `xml` / `xlsx` from file name + MIME type. |
-| `skills`       | `DataNormalizationSkill`    | Validates/normalizes any parser output (non-empty field names, consistent record keys, format set). |
-| `agents`       | `ExcelParserAgent`          | Parses `.xlsx` (Apache POI 5.2.3) — first sheet, row 0 = headers, handles null/date/string/numeric/boolean cells. |
-| `agents`       | `XmlParserAgent`            | Parses XML (Jackson `jackson-dataformat-xml` 2.15.2) — single + repeated elements, flattens top-level fields. |
-| `orchestrator` | `FileParserOrchestrator`    | Detects format and routes to the right agent; `UnsupportedOperationException` for unknown formats. |
-| `controllers`  | `ParserController`          | `POST /api/upload` (multipart) → `ParsedFile` JSON, with error handling. |
+Single repo; the Spring Boot backend and the React frontend currently share the
+root (`src/main/java` is the backend, `src/*.jsx` + `src/pages` etc. are the
+frontend).
+
+```
+src/main/java/com/mes/...   Spring Boot backend
+src/main/resources/         application.properties (+ aws profile)
+src/{App.jsx,pages,components,utils,styles.css}   React (Vite) frontend
+pom.xml, package.json, vite.config.js, index.html
+```
+
+## Running locally
+
+Start the **backend first** (port **8050**); the frontend dev server proxies
+`/api` to it.
+
+- **Backend:** open the project in IntelliJ and run `MesPocApplication`. Set
+  `ANTHROPIC_API_KEY` in the run config's env vars to enable Claude enrichment
+  (without it, a local rules-based fallback is used). Catalogue data is stored in
+  a file-based H2 DB at `./data/mes-catalogue` (inspect at
+  http://localhost:8050/h2-console). For AWS, activate the `aws` profile for
+  MySQL/RDS (`application-aws.properties`).
+- **Frontend:**
+  ```bash
+  npm install      # first time
+  npm run dev      # http://localhost:3000  (proxies /api -> :8050)
+  ```
 
 ## API
 
 ```
-POST /api/upload        Content-Type: multipart/form-data
-  form field: file=<the upload>
-→ 200  ParsedFile JSON
-→ 400  empty/invalid file
-→ 415  unsupported/unrecognized format
-→ 422  file could not be parsed
+POST   /api/upload              multipart (file) -> normalized ParsedFile JSON
+POST   /api/upload/enhance      multipart (file) -> EnhancedMetadataResponse (parse + Claude)
+
+POST   /api/catalogue           multipart (file + JSON payload) -> register a dataset
+GET    /api/catalogue           list datasets (paged). Query params:
+                                   q       free-text (title/description/owner/source file)
+                                   tag     dataset has this tag
+                                   format  file format (csv/xlsx/...)
+                                   page, size, sort   pagination + sorting (default: createdAt desc)
+                                 -> { content[], page, size, totalElements, totalPages }
+GET    /api/catalogue/{id}      full metadata for one dataset
+GET    /api/catalogue/{id}/file download the original uploaded file
+PUT    /api/catalogue/{id}      update title/description (and optionally fields)
+DELETE /api/catalogue/{id}      remove a dataset and its stored file
 ```
 
-## Building behind the corporate proxy
-
-This machine has no `mvn` on the PATH; a cached Maven 3.9.6 is used directly.
-The Zscaler proxy **blocks `.jar` downloads from Maven Central**
-(`repo.maven.apache.org`) but allows them from Google's Cloud Storage mirror, and
-intercepts TLS with corporate root CAs that the JDK does not trust by default.
-
-Two things make the build work (already set up in this repo / machine):
-
-1. **`maven-settings.xml`** mirrors `central` → the GCS Maven Central mirror.
-2. **A truststore** (`C:\Users\981357\tools\mes-truststore.jks`, password
-   `changeit`) containing the Zscaler + Cognizant root CAs, passed via
-   `MAVEN_OPTS`.
-
-```powershell
-$MVN = "C:\Users\981357\.m2\wrapper\dists\apache-maven-3.9.6-bin\3311e1d4\apache-maven-3.9.6\bin\mvn.cmd"
-$env:MAVEN_OPTS = "-Djavax.net.ssl.trustStore=C:\Users\981357\tools\mes-truststore.jks -Djavax.net.ssl.trustStorePassword=changeit"
-
-& $MVN -s maven-settings.xml clean test       # run tests
-& $MVN -s maven-settings.xml package           # build bootable jar
-java -jar target/mes-poc-0.0.1-SNAPSHOT.jar    # run the service (port 8080)
-```
+Errors use a JSON envelope `{ status, error, message }` — 400 (invalid), 404
+(unknown id), 415 (unsupported format), 422 (parse failure).
 
 ## Tests
 
-`ExcelParserAgentTest` and `XmlParserAgentTest` build sample files in memory and
-cover null cells, empty rows, date fields, type mapping, repeated XML elements,
-field-name union, and empty-element handling. Current status: **9 tests, all
-passing.**
+Backend tests live under `src/test/java/com/mes`:
+- `agents/` — parser tests (Excel, XML, Parquet).
+- `catalogue/CatalogueServiceTest` — register / detail / update / delete (Mockito,
+  no DB needed).

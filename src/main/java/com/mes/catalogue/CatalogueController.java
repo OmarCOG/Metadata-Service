@@ -4,20 +4,28 @@ import com.mes.catalogue.dto.CatalogueDetail;
 import com.mes.catalogue.dto.CatalogueSubmitRequest;
 import com.mes.catalogue.dto.CatalogueSubmitResponse;
 import com.mes.catalogue.dto.CatalogueSummary;
+import com.mes.catalogue.dto.CatalogueUpdateRequest;
+import com.mes.catalogue.dto.PagedResponse;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -50,16 +58,39 @@ public class CatalogueController {
         return ResponseEntity.status(HttpStatus.CREATED).body(body);
     }
 
-    /** Lists all registered datasets, newest first. */
+    /**
+     * Lists registered datasets, newest first by default. Supports optional
+     * search/filter ({@code q}, {@code tag}, {@code format}) and standard
+     * pagination/sorting ({@code page}, {@code size}, {@code sort}). Returns a
+     * page envelope with content + pagination metadata.
+     */
     @GetMapping
-    public ResponseEntity<List<CatalogueSummary>> list() {
-        return ResponseEntity.ok(catalogueService.listSummaries());
+    public ResponseEntity<PagedResponse<CatalogueSummary>> list(
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) String tag,
+            @RequestParam(required = false) String format,
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        return ResponseEntity.ok(catalogueService.search(q, tag, format, pageable));
     }
 
     /** Full metadata for one registered dataset. */
     @GetMapping("/{id}")
     public ResponseEntity<CatalogueDetail> detail(@PathVariable Long id) {
         return ResponseEntity.ok(catalogueService.getDetail(id));
+    }
+
+    /** Updates a dataset's title/description and optionally its field metadata. */
+    @PutMapping("/{id}")
+    public ResponseEntity<CatalogueDetail> update(@PathVariable Long id,
+                                                  @RequestBody CatalogueUpdateRequest request) {
+        return ResponseEntity.ok(catalogueService.update(id, request));
+    }
+
+    /** Removes a dataset and its stored original file. */
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(@PathVariable Long id) {
+        catalogueService.delete(id);
+        return ResponseEntity.noContent().build();
     }
 
     /** Downloads the original uploaded file for a dataset. */

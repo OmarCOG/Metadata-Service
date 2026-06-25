@@ -8,4 +8,6 @@ import java.util.Optional;
 public interface DatasetFileBlobRepository extends JpaRepository<DatasetFileBlob, Long> {
 
     Optional<DatasetFileBlob> findByDatasetId(Long datasetId);
+
+    void deleteByDatasetId(Long datasetId);
 }

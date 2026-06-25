@@ -17,6 +17,9 @@ public interface DatasetFileStorage {
     /** Loads a previously stored file, or empty if none exists for the id. */
     Optional<StoredFile> load(Long datasetId);
 
+    /** Removes the stored file for a dataset (no-op if none exists). */
+    void delete(Long datasetId);
+
     /** An original file retrieved from storage. */
     record StoredFile(String originalFileName, String contentType, byte[] content) {}
 }

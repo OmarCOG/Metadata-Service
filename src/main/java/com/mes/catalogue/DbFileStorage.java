@@ -1,6 +1,7 @@
 package com.mes.catalogue;
 
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
 
@@ -33,5 +34,11 @@ public class DbFileStorage implements DatasetFileStorage {
     public Optional<StoredFile> load(Long datasetId) {
         return blobRepository.findByDatasetId(datasetId)
                 .map(b -> new StoredFile(b.getOriginalFileName(), b.getContentType(), b.getContent()));
+    }
+
+    @Override
+    @Transactional
+    public void delete(Long datasetId) {
+        blobRepository.deleteByDatasetId(datasetId);
     }
 }
