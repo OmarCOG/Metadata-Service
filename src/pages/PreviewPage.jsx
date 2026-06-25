@@ -1,10 +1,45 @@
 import { useState, useRef } from "react";
 
+// Inline styles for the tag editor — kept here to match the file's existing
+// inline-style approach and reuse the .tag visual language from styles.css.
+const tagInputStyle = {
+  fontFamily: "var(--font-mono)",
+  fontSize: 10,
+  fontWeight: 500,
+  padding: "2px 6px",
+  borderRadius: 4,
+  background: "#ffffff",
+  border: "1px solid #103a63",
+  color: "#0a2a4a",
+  outline: "none",
+  boxShadow: "0 0 0 2px rgba(16,58,99,0.14)",
+  boxSizing: "content-box",
+};
+const tagRemoveBtnStyle = {
+  background: "none", border: "none", cursor: "pointer",
+  color: "var(--text-3)", fontSize: 13, lineHeight: 1, padding: "0 1px",
+  display: "flex", alignItems: "center",
+};
+const tagAddBtnStyle = {
+  fontFamily: "var(--font-mono)", fontSize: 11, fontWeight: 600,
+  width: 18, height: 18, borderRadius: 4, cursor: "pointer",
+  background: "var(--surface-2)", border: "1px dashed var(--border-mid)",
+  color: "#103a63", display: "inline-flex", alignItems: "center", justifyContent: "center",
+  lineHeight: 1, padding: 0,
+};
+
 export default function PreviewPage({ metadata, onProceed, onBack }) {
   const [fields, setFields]         = useState(metadata.fields);
   const [editingIdx, setEditingIdx] = useState(null);
   const [search, setSearch]         = useState("");
   const textareaRef = useRef(null);
+
+  // Tag editing state: which tag is open for inline edit, its draft text, and
+  // which field's "add tag" input is open plus its draft.
+  const [editingTag, setEditingTag] = useState(null); // { fieldIdx, tagIdx }
+  const [tagDraft, setTagDraft]     = useState("");
+  const [addingForIdx, setAddingForIdx] = useState(null);
+  const [newTag, setNewTag]         = useState("");
 
   const updateDescription = (idx, value) =>
     setFields(prev => prev.map((f, i) => i === idx ? { ...f, description: value } : f));
@@ -12,6 +47,46 @@ export default function PreviewPage({ metadata, onProceed, onBack }) {
   const handleCellClick = (idx) => {
     setEditingIdx(idx);
     setTimeout(() => textareaRef.current?.focus(), 0);
+  };
+
+  // ── Tag editing ──
+  const removeTag = (fieldIdx, tagIdx) =>
+    setFields(prev => prev.map((f, i) =>
+      i === fieldIdx ? { ...f, tags: (f.tags || []).filter((_, t) => t !== tagIdx) } : f));
+
+  const startEditTag = (fieldIdx, tagIdx, current) => {
+    setEditingTag({ fieldIdx, tagIdx });
+    setTagDraft(current);
+  };
+
+  const cancelEditTag = () => { setEditingTag(null); setTagDraft(""); };
+
+  const commitEditTag = () => {
+    if (!editingTag) return;
+    const { fieldIdx, tagIdx } = editingTag;
+    const value = tagDraft.trim();
+    setFields(prev => prev.map((f, i) => {
+      if (i !== fieldIdx) return f;
+      const tags = [...(f.tags || [])];
+      if (!value) tags.splice(tagIdx, 1);                 // emptied → remove
+      else if (!tags.includes(value) || tags[tagIdx] === value) tags[tagIdx] = value; // modify (skip if dupes another)
+      return { ...f, tags };
+    }));
+    cancelEditTag();
+  };
+
+  const startAddTag = (fieldIdx) => { setAddingForIdx(fieldIdx); setNewTag(""); };
+  const cancelAddTag = () => { setAddingForIdx(null); setNewTag(""); };
+
+  const commitAddTag = (fieldIdx) => {
+    const value = newTag.trim();
+    if (value) {
+      setFields(prev => prev.map((f, i) =>
+        i === fieldIdx
+          ? { ...f, tags: (f.tags || []).includes(value) ? f.tags : [...(f.tags || []), value] }
+          : f));
+    }
+    cancelAddTag();
   };
 
   const q = search.trim().toLowerCase();
@@ -35,7 +110,7 @@ export default function PreviewPage({ metadata, onProceed, onBack }) {
           <h1 className="page-heading">Review Metadata</h1>
           <p className="page-sub">
             Inspect all extracted fields.&nbsp;
-            <span style={{ color: "#103a63", fontWeight: 500 }}>Click any description cell to edit it inline.</span>
+            <span style={{ color: "#103a63", fontWeight: 500 }}>Click a description to edit it; click a tag to rename, &times; to remove, or + to add.</span>
           </p>
         </div>
         <div className="preview-stats">
@@ -174,9 +249,71 @@ export default function PreviewPage({ metadata, onProceed, onBack }) {
                       ))}
                     </div>
                   </td>
-                  <td>
-                    <div className="tag-list">
-                      {(field.tags || []).map(tag => <span key={tag} className="tag">{tag}</span>)}
+                  <td style={{ minWidth: 150 }}>
+                    <div className="tag-list" style={{ alignItems: "center" }}>
+                      {(field.tags || []).map((tag, tIdx) => {
+                        const isEditingThis = editingTag &&
+                          editingTag.fieldIdx === realIdx && editingTag.tagIdx === tIdx;
+                        return isEditingThis ? (
+                          <input
+                            key={tIdx}
+                            autoFocus
+                            value={tagDraft}
+                            onChange={e => setTagDraft(e.target.value)}
+                            onBlur={commitEditTag}
+                            onKeyDown={e => {
+                              if (e.key === "Enter") commitEditTag();
+                              else if (e.key === "Escape") cancelEditTag();
+                            }}
+                            style={{ ...tagInputStyle, width: Math.max(40, tagDraft.length * 6 + 8) }}
+                          />
+                        ) : (
+                          <span
+                            key={tIdx}
+                            className="tag"
+                            style={{ display: "inline-flex", alignItems: "center", gap: 4, paddingRight: 4 }}
+                          >
+                            <span
+                              style={{ cursor: "pointer" }}
+                              onClick={() => startEditTag(realIdx, tIdx, tag)}
+                              title="Click to edit tag"
+                            >
+                              {tag}
+                            </span>
+                            <button
+                              onClick={() => removeTag(realIdx, tIdx)}
+                              title="Remove tag"
+                              style={tagRemoveBtnStyle}
+                              aria-label={`Remove tag ${tag}`}
+                            >
+                              ×
+                            </button>
+                          </span>
+                        );
+                      })}
+                      {addingForIdx === realIdx ? (
+                        <input
+                          autoFocus
+                          value={newTag}
+                          onChange={e => setNewTag(e.target.value)}
+                          onBlur={() => commitAddTag(realIdx)}
+                          onKeyDown={e => {
+                            if (e.key === "Enter") commitAddTag(realIdx);
+                            else if (e.key === "Escape") cancelAddTag();
+                          }}
+                          placeholder="tag…"
+                          style={{ ...tagInputStyle, width: Math.max(48, newTag.length * 6 + 24) }}
+                        />
+                      ) : (
+                        <button
+                          onClick={() => startAddTag(realIdx)}
+                          title="Add tag"
+                          style={tagAddBtnStyle}
+                          aria-label="Add tag"
+                        >
+                          +
+                        </button>
+                      )}
                     </div>
                   </td>
                   {/* Editable description */}
