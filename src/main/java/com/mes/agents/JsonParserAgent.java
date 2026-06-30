@@ -83,12 +83,24 @@ public class JsonParserAgent {
         }
 
         if (root.isObject()) {
-            JsonNode fields = root.get("fields");
-            if (fields != null && fields.isArray()) {
-                fields.forEach(nodes::add);
-                return nodes;
+            // Common wrapper keys whose value is the record array,
+            // e.g. { "records": [...] }, { "data": [...] }, { "fields": [...] }.
+            for (String key : List.of("records", "data", "items", "rows", "results", "fields")) {
+                JsonNode arr = root.get(key);
+                if (arr != null && arr.isArray()) {
+                    arr.forEach(nodes::add);
+                    return nodes;
+                }
             }
-            // A single object is one record.
+            // Generic fallback: a single property that is an array → treat it as the records.
+            if (root.size() == 1) {
+                JsonNode only = root.elements().next();
+                if (only.isArray()) {
+                    only.forEach(nodes::add);
+                    return nodes;
+                }
+            }
+            // Otherwise a single object is one record.
             nodes.add(root);
         }
         return nodes;
