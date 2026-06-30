@@ -53,9 +53,10 @@ function mapResponse(data, fallbackFileName) {
     sample_values: f.sampleValues || [],
     tags: f.tags || [],
     description: f.description || "",
-    // Engine contract: pci_data / npi_data are always boolean, never null.
-    pci_data: Boolean(f.pciData),
+    // Multi-label compliance flags — always boolean, never null.
+    pii_data: Boolean(f.piiData),
     npi_data: Boolean(f.npiData),
+    pci_data: Boolean(f.pciData),
   }));
 
   return {
@@ -87,18 +88,18 @@ function toBackendMetadata(m) {
     sampleValues: f.sample_values || [],
     tags: f.tags || [],
     description: f.description || "",
-    pciData: Boolean(f.pci_data),
+    piiData: Boolean(f.pii_data),
     npiData: Boolean(f.npi_data),
-    phiData: Boolean(f.phi_data),
+    pciData: Boolean(f.pci_data),
   }));
   return {
     fileName: m.source_file,
     fileFormat: m.file_format,
     totalRecords: m.record_count ?? 0,
     totalFields: m.field_count ?? fields.length,
-    pciFieldsCount: fields.filter((f) => f.pciData).length,
+    piiFieldsCount: fields.filter((f) => f.piiData).length,
     npiFieldsCount: fields.filter((f) => f.npiData).length,
-    phiFieldsCount: fields.filter((f) => f.phiData).length,
+    pciFieldsCount: fields.filter((f) => f.pciData).length,
     fields,
   };
 }
@@ -109,16 +110,20 @@ function toBackendMetadata(m) {
  *
  * @returns {Promise<{id:number, exchangeId:string, createdAt:string}>}
  */
-export async function submitToCatalogue({ file, title, description, owner, metadata }) {
+export async function submitToCatalogue({
+  file, datasetName, description, tags, dataSteward, piiData, pciData, dataRetentionYears, metadata,
+}) {
   if (!file) {
     throw new Error("The original file is no longer available — please re-upload it.");
   }
   const payload = {
-    title,
+    title: datasetName,           // backend stores the dataset name as `title`
     description,
-    ownerName: owner?.accountName ?? owner?.name ?? "",
-    ownerEmail: owner?.email ?? "",
-    ownerRole: owner?.role ?? "",
+    tags: tags || [],
+    dataSteward,
+    piiData: Boolean(piiData),
+    pciData: Boolean(pciData),
+    dataRetentionYears,
     metadata: toBackendMetadata(metadata),
   };
 
@@ -202,17 +207,20 @@ export async function fetchCatalogueDetail(id) {
     sample_values: f.sampleValues || [],
     tags: f.tags || [],
     description: f.description || "",
-    pci_data: Boolean(f.pciData),
+    pii_data: Boolean(f.piiData),
     npi_data: Boolean(f.npiData),
+    pci_data: Boolean(f.pciData),
   }));
   return {
     // catalogue-level attributes
     id: data.id,
     title: data.title,
     dataset_description: data.description,
-    owner_name: data.ownerName,
-    owner_email: data.ownerEmail,
-    owner_role: data.ownerRole,
+    data_steward: data.dataSteward,
+    pii_data: Boolean(data.piiData),
+    pci_data: Boolean(data.pciData),
+    data_retention_years: data.dataRetentionYears,
+    dataset_tags: data.tags || [],
     created_at: data.createdAt,
     // UI metadata shape (reused by the table + downloaders)
     source_file: data.sourceFileName,
@@ -227,4 +235,16 @@ export async function fetchCatalogueDetail(id) {
 /** Direct URL to download a dataset's original file. */
 export function catalogueFileUrl(id) {
   return `${CATALOGUE_ENDPOINT}/${id}/file`;
+}
+
+/** Fetches the sensitive-data classification taxonomy for the Help Guide. */
+export async function fetchTaxonomy() {
+  let res;
+  try {
+    res = await fetch("/api/taxonomy");
+  } catch {
+    throw new Error("Could not reach the metadata service.");
+  }
+  if (!res.ok) throw new Error(`Failed to load the classification guide (${res.status}).`);
+  return res.json(); // [{ key, label, definition, examples[], standard }]
 }

@@ -11,9 +11,11 @@ public class FieldMetadata {
     private List<String> sampleValues;
     private List<String> tags;
     private String description;
-    private boolean pciData;
-    private boolean npiData; // Maps to PII
-    private boolean phiData; // Maps to PHI
+    // Multi-label sensitive-data flags (a field may be true for several at once).
+    private boolean piiData;        // Personally Identifiable Information (NIST 800-122)
+    private boolean npiData;        // Nonpublic Personal Information — financial (GLBA)
+    private boolean pciData;        // Payment card / cardholder data (PCI-DSS)
+    private boolean phiData;        // Dormant — not surfaced (kept for back-compat)
 
     // Getters and Setters
     public String getFieldName() {
@@ -48,6 +50,10 @@ public class FieldMetadata {
         return description; }
     public void setDescription(String description) {
         this.description = description; }
+    public boolean isPiiData() {
+        return piiData; }
+    public void setPiiData(boolean piiData) {
+        this.piiData = piiData; }
     public boolean isPciData() {
         return pciData; }
     public void setPciData(boolean pciData) {

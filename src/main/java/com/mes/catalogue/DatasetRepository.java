@@ -15,4 +15,7 @@ public interface DatasetRepository
 
     /** Newest registrations first — used as the default listing order. */
     List<DatasetRecord> findAllByOrderByCreatedAtDesc();
+
+    /** Enforces unique dataset names (case-insensitive) at registration time. */
+    boolean existsByTitleIgnoreCase(String title);
 }

@@ -13,7 +13,9 @@ import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -31,10 +33,34 @@ public class DatasetRecord {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    /** The dataset's common name (UI: "Dataset Name"). Unique; treated as immutable after submit. */
     private String title;
 
     @Column(length = 2000)
     private String description;
+
+    /** Email of the data steward responsible for this dataset. */
+    private String dataSteward;
+
+    /**
+     * Dataset-level compliance declarations (distinct from the per-field counts).
+     * columnDefinition gives a DB default so ddl-auto can add the column to a
+     * table that already has rows (a plain NOT NULL primitive column cannot be).
+     */
+    @Column(columnDefinition = "boolean default false")
+    private boolean piiData;
+    @Column(columnDefinition = "boolean default false")
+    private boolean pciData;
+
+    /** How many years the data should be retained (1–9; defaults to 7). */
+    @Column(columnDefinition = "integer default 7")
+    private int dataRetentionYears = 7;
+
+    /** User-entered tags (registration) that help others search for this dataset. */
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "dataset_search_tag", joinColumns = @JoinColumn(name = "dataset_id"))
+    @Column(name = "tag")
+    private List<String> datasetTags = new ArrayList<>();
 
     private String ownerName;
     private String ownerEmail;
@@ -45,8 +71,10 @@ public class DatasetRecord {
 
     private int totalRecords;
     private int totalFields;
-    private int pciFieldsCount;
+    @Column(columnDefinition = "integer default 0")
+    private int piiFieldsCount;
     private int npiFieldsCount;
+    private int pciFieldsCount;
     private int phiFieldsCount;
 
     private Instant createdAt;
@@ -74,6 +102,21 @@ public class DatasetRecord {
     public String getDescription() { return description; }
     public void setDescription(String description) { this.description = description; }
 
+    public String getDataSteward() { return dataSteward; }
+    public void setDataSteward(String dataSteward) { this.dataSteward = dataSteward; }
+
+    public boolean isPiiData() { return piiData; }
+    public void setPiiData(boolean piiData) { this.piiData = piiData; }
+
+    public boolean isPciData() { return pciData; }
+    public void setPciData(boolean pciData) { this.pciData = pciData; }
+
+    public int getDataRetentionYears() { return dataRetentionYears; }
+    public void setDataRetentionYears(int dataRetentionYears) { this.dataRetentionYears = dataRetentionYears; }
+
+    public List<String> getDatasetTags() { return datasetTags; }
+    public void setDatasetTags(List<String> datasetTags) { this.datasetTags = datasetTags; }
+
     public String getOwnerName() { return ownerName; }
     public void setOwnerName(String ownerName) { this.ownerName = ownerName; }
 
@@ -94,6 +137,9 @@ public class DatasetRecord {
 
     public int getTotalFields() { return totalFields; }
     public void setTotalFields(int totalFields) { this.totalFields = totalFields; }
+
+    public int getPiiFieldsCount() { return piiFieldsCount; }
+    public void setPiiFieldsCount(int piiFieldsCount) { this.piiFieldsCount = piiFieldsCount; }
 
     public int getPciFieldsCount() { return pciFieldsCount; }
     public void setPciFieldsCount(int pciFieldsCount) { this.pciFieldsCount = pciFieldsCount; }

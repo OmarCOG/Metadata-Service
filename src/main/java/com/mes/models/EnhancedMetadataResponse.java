@@ -7,8 +7,9 @@ public class EnhancedMetadataResponse {
     private String fileFormat;
     private int totalRecords;
     private int totalFields;
-    private int pciFieldsCount;
+    private int piiFieldsCount;
     private int npiFieldsCount;
+    private int pciFieldsCount;
     private int phiFieldsCount;
     private List<FieldMetadata> fields;
 
@@ -29,6 +30,10 @@ public class EnhancedMetadataResponse {
         return totalFields; }
     public void setTotalFields(int totalFields) {
         this.totalFields = totalFields; }
+    public int getPiiFieldsCount() {
+        return piiFieldsCount; }
+    public void setPiiFieldsCount(int piiFieldsCount) {
+        this.piiFieldsCount = piiFieldsCount; }
     public int getPciFieldsCount() {
         return pciFieldsCount; }
     public void setPciFieldsCount(int pciFieldsCount) {

@@ -90,47 +90,82 @@ public class XmlParserAgent {
             return nodes;
         }
 
-        // root is an object. A document with a single wrapping element whose
-        // child is repeated parses to { "child": [ {...}, {...} ] }; a single
-        // occurrence parses to { "child": {...} }.
-        if (root.isObject() && root.size() == 1) {
-            JsonNode only = root.iterator().next();
-            if (only.isArray()) {
-                only.forEach(nodes::add);
+        if (root.isObject()) {
+            // The repeated child element is the record set. Pick the largest
+            // array-valued child — this works even when the root also carries
+            // attributes/metadata fields, e.g.
+            // <InsuranceClaims total="120"><Claim>..</Claim><Claim>..</Claim></InsuranceClaims>
+            // parses to { "total": "120", "Claim": [ {...}, {...} ] }.
+            JsonNode bestArray = null;
+            Iterator<Map.Entry<String, JsonNode>> it = root.fields();
+            while (it.hasNext()) {
+                JsonNode v = it.next().getValue();
+                if (v.isArray() && (bestArray == null || v.size() > bestArray.size())) {
+                    bestArray = v;
+                }
+            }
+            if (bestArray != null) {
+                bestArray.forEach(nodes::add);
                 return nodes;
             }
-            if (only.isObject()) {
-                nodes.add(only);
-                return nodes;
+
+            // No repeated element. A single wrapping object child -> one record.
+            if (root.size() == 1) {
+                JsonNode only = root.iterator().next();
+                if (only.isObject()) {
+                    nodes.add(only);
+                    return nodes;
+                }
             }
-            // Single scalar child (e.g. <root><value>1</value></root>): the root
-            // itself is the single record carrying that one field.
-            nodes.add(root);
-            return nodes;
         }
 
-        // Object with multiple top-level fields -> a single flat record.
+        // Otherwise the object itself is a single flat record.
         nodes.add(root);
         return nodes;
     }
 
     /**
-     * Flattens the top-level fields of a record node into an ordered map.
-     * Scalar values keep their natural type where possible; nested objects and
-     * arrays are stored as their text representation.
+     * Flattens a record node into an ordered map, descending recursively through
+     * nested element groups so leaf elements become columns (e.g. a
+     * {@code <PatientInfo><ssn>..</ssn></PatientInfo>} group yields an {@code ssn}
+     * column). Colliding leaf names are qualified with their parent element.
      */
     private Map<String, Object> flatten(JsonNode node) {
         Map<String, Object> record = new LinkedHashMap<>();
-        if (node == null || !node.isObject()) {
-            return record;
+        if (node != null && node.isObject()) {
+            flattenInto(null, node, record);
         }
+        return record;
+    }
 
+    private void flattenInto(String parentKey, JsonNode node, Map<String, Object> out) {
         Iterator<Map.Entry<String, JsonNode>> fields = node.fields();
         while (fields.hasNext()) {
             Map.Entry<String, JsonNode> entry = fields.next();
-            record.put(entry.getKey(), toValue(entry.getValue()));
+            String key = entry.getKey();
+            JsonNode val = entry.getValue();
+            if (val != null && val.isObject()) {
+                flattenInto(key, val, out);          // descend nested group
+            } else {
+                out.put(uniqueName(key, parentKey, out), toValue(val));
+            }
         }
-        return record;
+    }
+
+    /** Keeps the clean leaf name; on collision qualifies with the parent, then a suffix. */
+    private String uniqueName(String key, String parentKey, Map<String, Object> out) {
+        if (!out.containsKey(key)) {
+            return key;
+        }
+        String qualified = parentKey == null ? key : parentKey + "_" + key;
+        if (!out.containsKey(qualified)) {
+            return qualified;
+        }
+        int i = 2;
+        while (out.containsKey(qualified + "_" + i)) {
+            i++;
+        }
+        return qualified + "_" + i;
     }
 
     /** Converts a JSON/XML value node to a plain Java value. */

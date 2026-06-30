@@ -21,10 +21,12 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -34,6 +36,8 @@ import java.util.stream.Collectors;
  */
 @Service
 public class CatalogueService {
+
+    private static final Pattern EMAIL = Pattern.compile("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$");
 
     private final DatasetRepository datasetRepository;
     private final DatasetFileStorage fileStorage;
@@ -51,7 +55,7 @@ public class CatalogueService {
     @Transactional
     public CatalogueDetail register(CatalogueSubmitRequest req, MultipartFile file) {
         if (req == null || req.getTitle() == null || req.getTitle().isBlank()) {
-            throw new IllegalArgumentException("Dataset title is required");
+            throw new IllegalArgumentException("Dataset name is required");
         }
         if (req.getMetadata() == null) {
             throw new IllegalArgumentException("Dataset metadata is required");
@@ -60,15 +64,35 @@ public class CatalogueService {
             throw new IllegalArgumentException("Original dataset file is required");
         }
 
+        String name = req.getTitle().trim();
+        if (datasetRepository.existsByTitleIgnoreCase(name)) {
+            throw new IllegalArgumentException(
+                    "A dataset named '" + name + "' already exists. Dataset names must be unique.");
+        }
+        String steward = req.getDataSteward() == null ? "" : req.getDataSteward().trim();
+        if (steward.isEmpty() || !EMAIL.matcher(steward).matches()) {
+            throw new IllegalArgumentException("A valid Data Steward email is required");
+        }
+        int retention = req.getDataRetentionYears() == null ? 7 : req.getDataRetentionYears();
+        if (retention < 1 || retention > 9) {
+            throw new IllegalArgumentException("Data retention period must be a number of years between 1 and 9");
+        }
+        List<String> tags = sanitizeTags(req.getTags());
+        if (tags.size() > 10) {
+            throw new IllegalArgumentException("A maximum of 10 tags is allowed");
+        }
+
         EnhancedMetadataResponse meta = req.getMetadata();
         List<FieldMetadata> fields = meta.getFields() == null ? List.of() : meta.getFields();
 
         DatasetRecord record = new DatasetRecord();
-        record.setTitle(req.getTitle().trim());
+        record.setTitle(name);
         record.setDescription(req.getDescription());
-        record.setOwnerName(req.getOwnerName());
-        record.setOwnerEmail(req.getOwnerEmail());
-        record.setOwnerRole(req.getOwnerRole());
+        record.setDataSteward(steward);
+        record.setPiiData(req.isPiiData());
+        record.setPciData(req.isPciData());
+        record.setDataRetentionYears(retention);
+        record.setDatasetTags(tags);
         record.setSourceFileName(meta.getFileName() != null ? meta.getFileName() : file.getOriginalFilename());
         record.setFileFormat(meta.getFileFormat());
         record.setTotalRecords(meta.getTotalRecords());
@@ -163,7 +187,7 @@ public class CatalogueService {
                 preds.add(cb.or(
                         cb.like(cb.lower(root.get("title")), like),
                         cb.like(cb.lower(cb.coalesce(root.get("description"), "")), like),
-                        cb.like(cb.lower(cb.coalesce(root.get("ownerName"), "")), like),
+                        cb.like(cb.lower(cb.coalesce(root.get("dataSteward"), "")), like),
                         cb.like(cb.lower(cb.coalesce(root.get("sourceFileName"), "")), like)
                 ));
             }
@@ -171,7 +195,11 @@ public class CatalogueService {
                 preds.add(cb.equal(cb.lower(root.get("fileFormat")), format.trim().toLowerCase()));
             }
             if (tag != null && !tag.isBlank()) {
-                preds.add(cb.isMember(tag.trim(), root.<Set<String>>get("allTags")));
+                // match either the user-entered registration tags or the field-derived tags
+                preds.add(cb.or(
+                        cb.isMember(tag.trim(), root.<List<String>>get("datasetTags")),
+                        cb.isMember(tag.trim(), root.<Set<String>>get("allTags"))
+                ));
             }
             return cb.and(preds.toArray(new Predicate[0]));
         };
@@ -185,26 +213,39 @@ public class CatalogueService {
         record.setFieldsJson(writeFields(safe));
         record.setAllTags(collectTags(safe));
         record.setTotalFields(safe.size());
-        record.setPciFieldsCount((int) safe.stream().filter(FieldMetadata::isPciData).count());
+        record.setPiiFieldsCount((int) safe.stream().filter(FieldMetadata::isPiiData).count());
         record.setNpiFieldsCount((int) safe.stream().filter(FieldMetadata::isNpiData).count());
-        record.setPhiFieldsCount((int) safe.stream().filter(FieldMetadata::isPhiData).count());
+        record.setPciFieldsCount((int) safe.stream().filter(FieldMetadata::isPciData).count());
     }
 
     private CatalogueSummary toSummary(DatasetRecord r) {
         return new CatalogueSummary(
-                r.getId(), r.getTitle(), r.getDescription(), r.getOwnerName(),
+                r.getId(), r.getTitle(), r.getDescription(), r.getDataSteward(),
                 r.getSourceFileName(), r.getFileFormat(), r.getTotalRecords(),
-                r.getTotalFields(), r.getPciFieldsCount(), r.getNpiFieldsCount(),
-                r.getCreatedAt());
+                r.getTotalFields(), r.getPiiFieldsCount(), r.getNpiFieldsCount(),
+                r.getPciFieldsCount(),
+                r.isPiiData(), r.isPciData(), r.getDataRetentionYears(),
+                new ArrayList<>(r.getDatasetTags()), r.getCreatedAt());
     }
 
     private CatalogueDetail toDetail(DatasetRecord r, List<FieldMetadata> fields) {
         return new CatalogueDetail(
-                r.getId(), r.getTitle(), r.getDescription(), r.getOwnerName(),
-                r.getOwnerEmail(), r.getOwnerRole(), r.getSourceFileName(),
+                r.getId(), r.getTitle(), r.getDescription(), r.getDataSteward(),
+                r.isPiiData(), r.isPciData(), r.getDataRetentionYears(),
+                new ArrayList<>(r.getDatasetTags()), r.getSourceFileName(),
                 r.getFileFormat(), r.getTotalRecords(), r.getTotalFields(),
-                r.getPciFieldsCount(), r.getNpiFieldsCount(), r.getPhiFieldsCount(),
+                r.getPiiFieldsCount(), r.getNpiFieldsCount(), r.getPciFieldsCount(),
                 r.getCreatedAt(), fields);
+    }
+
+    /** Trims, drops blanks, and de-duplicates registration tags (preserving order). */
+    private List<String> sanitizeTags(List<String> raw) {
+        if (raw == null) return new ArrayList<>();
+        LinkedHashSet<String> set = new LinkedHashSet<>();
+        for (String t : raw) {
+            if (t != null && !t.trim().isEmpty()) set.add(t.trim());
+        }
+        return new ArrayList<>(set);
     }
 
     private String writeFields(List<FieldMetadata> fields) {

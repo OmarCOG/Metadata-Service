@@ -7,6 +7,17 @@ const fmtDate = (iso) => {
   try { return new Date(iso).toLocaleString(); } catch { return iso; }
 };
 
+// Read-only compliance badges (mirrors the Review page categories/colours).
+const CAT_BADGES = [
+  { key: "pii", label: "PII", field: "pii_data", color: "var(--accent)", dim: "var(--accent-dim)" },
+  { key: "npi", label: "NPI", field: "npi_data", color: "var(--amber)",  dim: "var(--amber-dim)" },
+  { key: "pci", label: "PCI", field: "pci_data", color: "var(--red)",    dim: "var(--red-dim)" },
+];
+const catBadgeStyle = (c) => ({
+  fontFamily: "var(--font-mono)", fontSize: 10, fontWeight: 600, padding: "1px 6px",
+  borderRadius: 4, color: c.color, background: c.dim, border: `1px solid ${c.color}`,
+});
+
 export default function CataloguePage({ onUploadNew }) {
   const [items, setItems]     = useState([]);
   const [loading, setLoading] = useState(true);
@@ -155,12 +166,18 @@ export default function CataloguePage({ onUploadNew }) {
                 <span>{(d.totalRecords ?? 0).toLocaleString()} records</span>
                 <span style={{ color: "var(--text-3)" }}>·</span>
                 <span>{d.totalFields ?? 0} fields</span>
-                {d.pciFieldsCount > 0 && <span className="pci-flag">PCI {d.pciFieldsCount}</span>}
-                {d.npiFieldsCount > 0 && <span className="npi-flag">NPI {d.npiFieldsCount}</span>}
+                {d.piiData && <span className="npi-flag">PII</span>}
+                {d.pciData && <span className="pci-flag">PCI</span>}
               </div>
 
+              {d.tags && d.tags.length > 0 && (
+                <div className="tag-list">
+                  {d.tags.slice(0, 5).map(t => <span key={t} className="tag">{t}</span>)}
+                </div>
+              )}
+
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4, fontSize: 11, color: "var(--text-3)", fontFamily: "var(--font-mono)" }}>
-                <span>{d.ownerName || "—"}</span>
+                <span>{d.dataSteward || "—"}</span>
                 <span>{fmtDate(d.createdAt)}</span>
               </div>
             </button>
@@ -226,7 +243,10 @@ function CatalogueDetail({ id, onBack }) {
       <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", padding: "16px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 16, marginBottom: 28 }}>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 24, fontSize: 12, fontFamily: "var(--font-mono)", color: "var(--text-2)" }}>
           <span><span style={{ color: "var(--text-3)" }}>Source </span>{data.source_file}</span>
-          <span><span style={{ color: "var(--text-3)" }}>Owner </span>{data.owner_name || "—"}</span>
+          <span><span style={{ color: "var(--text-3)" }}>Steward </span>{data.data_steward || "—"}</span>
+          <span><span style={{ color: "var(--text-3)" }}>Retention </span>{data.data_retention_years ?? "—"} yrs</span>
+          <span><span style={{ color: "var(--text-3)" }}>PII </span>{data.pii_data ? "Yes" : "No"}</span>
+          <span><span style={{ color: "var(--text-3)" }}>PCI </span>{data.pci_data ? "Yes" : "No"}</span>
           <span><span style={{ color: "var(--text-3)" }}>Registered </span>{fmtDate(data.created_at)}</span>
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -241,6 +261,14 @@ function CatalogueDetail({ id, onBack }) {
           </a>
         </div>
       </div>
+
+      {/* Dataset tags (registration) */}
+      {data.dataset_tags && data.dataset_tags.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, marginBottom: 24 }}>
+          <span style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--text-3)", textTransform: "uppercase", letterSpacing: "0.6px", marginRight: 4 }}>Tags</span>
+          {data.dataset_tags.map(t => <span key={t} className="tag">{t}</span>)}
+        </div>
+      )}
 
       {/* Field metadata table (read-only) */}
       <div className="table-wrapper">
@@ -279,10 +307,11 @@ function CatalogueDetail({ id, onBack }) {
                   <span style={{ fontSize: 13, color: "var(--text-1)", lineHeight: 1.5 }}>{field.description}</span>
                 </td>
                 <td>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                    {field.pci_data && <span className="pci-flag">PCI</span>}
-                    {field.npi_data && <span className="npi-flag">NPI</span>}
-                    {!field.pci_data && !field.npi_data && <span style={{ fontSize: 11, color: "var(--text-3)" }}>—</span>}
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                    {CAT_BADGES.filter(c => field[c.field]).map(c => (
+                      <span key={c.key} style={catBadgeStyle(c)}>{c.label}</span>
+                    ))}
+                    {!CAT_BADGES.some(c => field[c.field]) && <span style={{ fontSize: 11, color: "var(--text-3)" }}>—</span>}
                   </div>
                 </td>
               </tr>
