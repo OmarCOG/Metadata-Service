@@ -16,8 +16,23 @@ const iStyle = {
   transition: "border-color 0.15s, box-shadow 0.15s",
 };
 const lStyle   = { display: "block", fontSize: 13, fontWeight: 500, color: "#374151", marginBottom: 6 };
+const hStyle   = { fontSize: 12, color: "#6b7280", marginTop: 5, marginBottom: 0, lineHeight: 1.45 };
 const focusIn  = e => { e.target.style.borderColor = "#103a63"; e.target.style.boxShadow = "0 0 0 3px rgba(16,58,99,0.14)"; };
 const focusOut = e => { e.target.style.borderColor = "#e2e8f0"; e.target.style.boxShadow = "none"; };
+
+const DESC_MAX = 2000;
+const TAG_MAX = 10;
+
+// Split a comma-separated string into trimmed, de-duplicated (case-insensitive) tags.
+const parseTags = (raw) => {
+  const seen = new Set();
+  return (raw || "").split(",").map(t => t.trim()).filter(t => {
+    const k = t.toLowerCase();
+    if (!t || seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+};
 
 const FORMAT_OPTIONS = [
   {
@@ -60,15 +75,20 @@ export default function DownloadPage({ metadata, originalFile, onReset, onBack, 
 
   // Exchange modal
   const [modalStep, setModalStep]   = useState(null);
-  const [form, setForm]             = useState({ title: "", description: "", accountName: "", email: "", role: "" });
+  const [form, setForm]             = useState({
+    datasetName: "", description: "", tags: "", dataSteward: "",
+    piiData: "No", pciData: "No", dataRetentionYears: 7,
+  });
   const [formError, setFormError]   = useState("");
   const [exchangeId, setExchangeId] = useState("");
 
   const openModal  = () => {
     setModalStep("form");
     setFormError("");
-    // Pre-fill the dataset title from the source file name for convenience.
-    setForm({ title: metadata.source_file || "", description: "", accountName: "", email: "", role: "" });
+    setForm({
+      datasetName: "", description: "", tags: "", dataSteward: "",
+      piiData: "No", pciData: "No", dataRetentionYears: 7,
+    });
   };
   const closeModal = () => { if (modalStep !== "processing") setModalStep(null); };
 
@@ -86,14 +106,21 @@ export default function DownloadPage({ metadata, originalFile, onReset, onBack, 
   };
 
   const handleSubmit = async () => {
-    if (!form.title.trim()) {
-      setFormError("Dataset title is required."); return;
+    const name = form.datasetName.trim();
+    if (!name) { setFormError("Dataset Name is required."); return; }
+    const steward = form.dataSteward.trim();
+    if (!steward) { setFormError("Data Steward email is required."); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(steward)) {
+      setFormError("Please enter a valid Data Steward email."); return;
     }
-    if (!form.accountName.trim() || !form.email.trim() || !form.role.trim()) {
-      setFormError("Account name, email and role are required."); return;
+    const retention = Number(form.dataRetentionYears);
+    if (!Number.isInteger(retention) || retention < 1 || retention > 9) {
+      setFormError("Data retention period must be a whole number of years between 1 and 9."); return;
     }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
-      setFormError("Please enter a valid email address."); return;
+    const tags = parseTags(form.tags);
+    if (tags.length > TAG_MAX) { setFormError(`Please enter at most ${TAG_MAX} tags.`); return; }
+    if (form.description.length > DESC_MAX) {
+      setFormError(`Description must be ${DESC_MAX} characters or fewer.`); return;
     }
     if (!originalFile) {
       setFormError("The original file is no longer available — please start over and re-upload."); return;
@@ -103,9 +130,13 @@ export default function DownloadPage({ metadata, originalFile, onReset, onBack, 
     try {
       const res = await submitToCatalogue({
         file: originalFile,
-        title: form.title.trim(),
+        datasetName: name,
         description: form.description.trim(),
-        owner: { accountName: form.accountName.trim(), email: form.email.trim(), role: form.role.trim() },
+        tags,
+        dataSteward: steward,
+        piiData: form.piiData === "Yes",
+        pciData: form.pciData === "Yes",
+        dataRetentionYears: retention,
         metadata,
       });
       setExchangeId(res.exchangeId || ("EXC-" + res.id));
@@ -296,7 +327,7 @@ export default function DownloadPage({ metadata, originalFile, onReset, onBack, 
           onClick={closeModal}
         >
           <div
-            style={{ background: "#ffffff", borderRadius: 16, padding: "36px 36px 32px", width: "100%", maxWidth: 460, position: "relative", boxShadow: "0 24px 64px rgba(0,0,0,0.28)" }}
+            style={{ background: "#ffffff", borderRadius: 16, padding: "32px 32px 28px", width: "100%", maxWidth: 480, maxHeight: "90vh", overflowY: "auto", position: "relative", boxShadow: "0 24px 64px rgba(0,0,0,0.28)" }}
             onClick={e => e.stopPropagation()}
           >
             {/* Step 1 — Form */}
@@ -313,37 +344,54 @@ export default function DownloadPage({ metadata, originalFile, onReset, onBack, 
                   </svg>
                 </div>
                 <h3 style={{ fontSize: 20, fontWeight: 700, color: "#111827", marginBottom: 6 }}>Submit to Exchange</h3>
-                <p style={{ fontSize: 13, color: "#6b7280", marginBottom: 28, lineHeight: 1.6 }}>
-                  Enter your details to register this dataset in Capital One's Exchange catalog.
+                <p style={{ fontSize: 13, color: "#6b7280", marginBottom: 20, lineHeight: 1.55 }}>
+                  Enter the dataset details to register it in Capital One's Exchange catalogue.
                 </p>
-                <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                   <div>
-                    <label style={lStyle}>Dataset Title <span style={{ color: "#ef4444" }}>*</span></label>
-                    <input type="text" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g. Q3 Customer Transactions" style={iStyle} onFocus={focusIn} onBlur={focusOut} />
+                    <label style={lStyle}>Dataset Name <span style={{ color: "#ef4444" }}>*</span></label>
+                    <input type="text" value={form.datasetName} onChange={e => setForm(f => ({ ...f, datasetName: e.target.value }))} placeholder="Enter the common name of the dataset. For e.g.: credit_card_transactions. This should be unique and you can't change this after you submit." style={iStyle} onFocus={focusIn} onBlur={focusOut} />
                   </div>
                   <div>
                     <label style={lStyle}>Description</label>
-                    <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="What this dataset contains, its source, and intended use…" rows={3} style={{ ...iStyle, resize: "vertical", lineHeight: 1.5 }} onFocus={focusIn} onBlur={focusOut} />
+                    <textarea value={form.description} maxLength={DESC_MAX} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Describe the purpose, intended use, contents, relevant historical information, source, intended users and anything else that will be useful for someone who is looking for this dataset." rows={4} style={{ ...iStyle, resize: "vertical", lineHeight: 1.5 }} onFocus={focusIn} onBlur={focusOut} />
+                    <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 5 }}>
+                      <span style={{ fontSize: 12, color: form.description.length >= DESC_MAX ? "#dc2626" : "#94a3b8", fontFamily: "var(--font-mono)" }}>{form.description.length}/{DESC_MAX}</span>
+                    </div>
                   </div>
                   <div>
-                    <label style={lStyle}>Account Name <span style={{ color: "#ef4444" }}>*</span></label>
-                    <input type="text" value={form.accountName} onChange={e => setForm(f => ({ ...f, accountName: e.target.value }))} placeholder="e.g. Capital One Data Team" style={iStyle} onFocus={focusIn} onBlur={focusOut} />
+                    <label style={lStyle}>Tags</label>
+                    <input type="text" value={form.tags} onChange={e => setForm(f => ({ ...f, tags: e.target.value }))} placeholder="e.g. payments, transactions, monthly" style={iStyle} onFocus={focusIn} onBlur={focusOut} />
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                      <p style={hStyle}>Enter tags that help users search for this dataset — up to 10, separated by commas.</p>
+                      <span style={{ fontSize: 12, color: parseTags(form.tags).length > TAG_MAX ? "#dc2626" : "#94a3b8", fontFamily: "var(--font-mono)", whiteSpace: "nowrap", marginTop: 5 }}>{parseTags(form.tags).length}/{TAG_MAX}</span>
+                    </div>
                   </div>
                   <div>
-                    <label style={lStyle}>Email ID <span style={{ color: "#ef4444" }}>*</span></label>
-                    <input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="you@capitalone.com" style={iStyle} onFocus={focusIn} onBlur={focusOut} />
+                    <label style={lStyle}>Data Steward <span style={{ color: "#ef4444" }}>*</span></label>
+                    <input type="email" value={form.dataSteward} onChange={e => setForm(f => ({ ...f, dataSteward: e.target.value }))} placeholder="steward@capitalone.com" style={iStyle} onFocus={focusIn} onBlur={focusOut} />
+                    <p style={hStyle}>The email ID of the person responsible for this dataset.</p>
+                  </div>
+                  <div style={{ display: "flex", gap: 14 }}>
+                    <div style={{ flex: 1 }}>
+                      <label style={lStyle}>PII Data</label>
+                      <select value={form.piiData} onChange={e => setForm(f => ({ ...f, piiData: e.target.value }))} style={{ ...iStyle, cursor: "pointer" }} onFocus={focusIn} onBlur={focusOut}>
+                        <option>No</option>
+                        <option>Yes</option>
+                      </select>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label style={lStyle}>PCI Data</label>
+                      <select value={form.pciData} onChange={e => setForm(f => ({ ...f, pciData: e.target.value }))} style={{ ...iStyle, cursor: "pointer" }} onFocus={focusIn} onBlur={focusOut}>
+                        <option>No</option>
+                        <option>Yes</option>
+                      </select>
+                    </div>
                   </div>
                   <div>
-                    <label style={lStyle}>Role <span style={{ color: "#ef4444" }}>*</span></label>
-                    <select value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))} style={{ ...iStyle, cursor: "pointer" }} onFocus={focusIn} onBlur={focusOut}>
-                      <option value="">Select a role…</option>
-                      <option>Data Engineer</option>
-                      <option>Data Analyst</option>
-                      <option>Data Scientist</option>
-                      <option>Product Manager</option>
-                      <option>Platform Engineer</option>
-                      <option>Other</option>
-                    </select>
+                    <label style={lStyle}>Data Retention Period (years) <span style={{ color: "#ef4444" }}>*</span></label>
+                    <input type="number" min={1} max={9} value={form.dataRetentionYears} onChange={e => setForm(f => ({ ...f, dataRetentionYears: e.target.value }))} style={iStyle} onFocus={focusIn} onBlur={focusOut} />
+                    <p style={hStyle}>How many years should this data be kept? (less than 10)</p>
                   </div>
                 </div>
                 {formError && (
@@ -397,18 +445,18 @@ export default function DownloadPage({ metadata, originalFile, onReset, onBack, 
                 </div>
                 <h3 style={{ fontSize: 20, fontWeight: 700, color: "#111827", marginBottom: 8 }}>Submitted Successfully!</h3>
                 <p style={{ fontSize: 13, color: "#6b7280", marginBottom: 24, lineHeight: 1.6 }}>
-                  <strong style={{ color: "#1e293b" }}>{metadata.source_file}</strong> has been registered<br />in the Exchange catalog.
+                  <strong style={{ color: "#1e293b" }}>{form.datasetName}</strong> has been registered<br />in the Exchange catalogue.
                 </p>
                 <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 10, padding: "14px 20px", marginBottom: 10, textAlign: "left" }}>
                   <div style={{ fontSize: 11, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: 8, fontFamily: "var(--font-mono)" }}>Confirmation Details</div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
                     {[
-                      { label: "Exchange ID", val: exchangeId, mono: true, green: true },
-                      { label: "Title",       val: form.title },
-                      { label: "Account",     val: form.accountName },
-                      { label: "Email",       val: form.email },
-                      { label: "Role",        val: form.role },
-                      { label: "Timestamp",   val: new Date().toLocaleString(), mono: true, small: true },
+                      { label: "Exchange ID",  val: exchangeId, mono: true, green: true },
+                      { label: "Dataset Name", val: form.datasetName, mono: true },
+                      { label: "Data Steward", val: form.dataSteward },
+                      { label: "Retention",    val: form.dataRetentionYears + " years" },
+                      { label: "PII / PCI",    val: form.piiData + " / " + form.pciData },
+                      { label: "Timestamp",    val: new Date().toLocaleString(), mono: true, small: true },
                     ].map(row => (
                       <div key={row.label} style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
                         <span style={{ color: "#6b7280" }}>{row.label}</span>

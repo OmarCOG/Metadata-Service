@@ -66,11 +66,15 @@ class CatalogueServiceTest {
         CatalogueSubmitRequest req = new CatalogueSubmitRequest();
         req.setTitle("Customers");
         req.setDescription("desc");
-        req.setOwnerName("K");
+        req.setDataSteward("steward@capitalone.com");
+        req.setTags(List.of("billing", "billing", "  ", "monthly"));
+        req.setPiiData(true);
+        req.setDataRetentionYears(5);
         req.setMetadata(meta);
 
         MockMultipartFile file = new MockMultipartFile("file", "cust.csv", "text/csv", "a,b\n1,2".getBytes());
 
+        when(datasetRepository.existsByTitleIgnoreCase("Customers")).thenReturn(false);
         when(datasetRepository.save(any(DatasetRecord.class))).thenAnswer(inv -> {
             DatasetRecord r = inv.getArgument(0);
             r.setId(7L);
@@ -81,6 +85,10 @@ class CatalogueServiceTest {
 
         assertThat(detail.id()).isEqualTo(7L);
         assertThat(detail.title()).isEqualTo("Customers");
+        assertThat(detail.dataSteward()).isEqualTo("steward@capitalone.com");
+        assertThat(detail.piiData()).isTrue();
+        assertThat(detail.dataRetentionYears()).isEqualTo(5);
+        assertThat(detail.tags()).containsExactly("billing", "monthly"); // trimmed + de-duped
         assertThat(detail.totalFields()).isEqualTo(2);
         assertThat(detail.pciFieldsCount()).isEqualTo(1);
         assertThat(detail.npiFieldsCount()).isEqualTo(1);
@@ -99,6 +107,21 @@ class CatalogueServiceTest {
         MockMultipartFile file = new MockMultipartFile("file", "f.csv", "text/csv", "x".getBytes());
         assertThatThrownBy(() -> service.register(req, file))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void register_rejectsDuplicateName() {
+        EnhancedMetadataResponse meta = new EnhancedMetadataResponse();
+        meta.setFields(List.of());
+        CatalogueSubmitRequest req = new CatalogueSubmitRequest();
+        req.setTitle("Dupe");
+        req.setDataSteward("a@b.com");
+        req.setMetadata(meta);
+        MockMultipartFile file = new MockMultipartFile("file", "f.csv", "text/csv", "x".getBytes());
+        when(datasetRepository.existsByTitleIgnoreCase("Dupe")).thenReturn(true);
+        assertThatThrownBy(() -> service.register(req, file))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("must be unique");
     }
 
     @Test

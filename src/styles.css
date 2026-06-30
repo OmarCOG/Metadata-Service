@@ -77,8 +77,8 @@ body {
   max-width: 1120px;
   width: 100%;
   margin: 0 auto;
-  /* Horizontal 1rem keeps content off the screen edges on narrow viewports. */
-  padding: 36px 1rem 96px;
+  /* Responsive side padding: comfortable on desktop, tight (but safe) on mobile. */
+  padding: 36px clamp(16px, 4vw, 36px) 88px;
 }
 
 /* ─── Header — deep navy band with gold hairline ─────────── */
@@ -206,6 +206,8 @@ body {
   font-size: 14.5px;
   color: var(--text-2);
   margin-top: 8px;
+  line-height: 1.55;
+  max-width: 70ch;
 }
 
 /* ─── Upload Zone ────────────────────────────────────────── */
@@ -717,6 +719,14 @@ tr:hover td { background: rgba(16,58,99,0.025); }
 }
 
 /* ─── Responsiveness ─────────────────────────────────────── */
+/* The metadata table has many columns; at narrower widths (or higher browser
+   zoom, which behaves like a narrower viewport) let it scroll inside its own
+   bordered box — .table-wrapper has overflow-x:auto — instead of crushing the
+   columns. The page itself never scrolls sideways (.app-shell overflow-x:hidden). */
+@media (max-width: 1024px) {
+  table { min-width: 880px; }
+}
+
 @media (max-width: 640px) {
   .main-content { padding: 22px 16px 64px; }
   .page-heading { font-size: 24px; }
@@ -724,4 +734,8 @@ tr:hover td { background: rgba(16,58,99,0.025); }
   .exchange-card { flex-direction: column; }
   .preview-header { flex-direction: column; }
   th, td { padding: 10px 12px; }
+  .header { padding: 0 16px; gap: 10px; }
+  .header-sub, .header-divider { display: none; }
+  .header-product { font-size: 16px; }
+  .preview-stats { width: 100%; }
 }

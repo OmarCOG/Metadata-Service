@@ -63,11 +63,17 @@ Each field the engine describes carries the following metadata:
 | `null_count`    | Count of null/empty values. |
 | `description`   | Human-readable description. |
 | `tags`          | Classification tags. |
-| `pci_data`      | Boolean — whether the field holds PCI (payment card) data. |
-| `npi_data`      | Boolean — whether the field holds NPI (non-public personal) data. |
+| `pii_data`      | Boolean — Personally Identifiable Information (NIST SP 800-122). |
+| `npi_data`      | Boolean — Nonpublic Personal Information, financial (GLBA). |
+| `pci_data`      | Boolean — Payment card / cardholder data (PCI-DSS). |
 
-- In the engine's output, **`pci_data` and `npi_data` are boolean on every
-  record** — never null/absent; default to `false` when not detected.
+- These three compliance flags are **multi-label** — a single field may be `true`
+  for several at once (e.g. a card number is `pci_data` AND `pii_data` AND
+  `npi_data`). Each is **boolean on every record** — never null/absent; default to
+  `false` when not detected. The taxonomy (definitions, examples, name-pattern
+  fallback, and the `/api/taxonomy` Help-Guide feed) lives in
+  `skills/SensitiveDataTaxonomy.java`. (`phi_data` exists in the model but is
+  dormant — not classified or surfaced.)
 
 ## Component reference
 

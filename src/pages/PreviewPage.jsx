@@ -1,4 +1,5 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
+import { fetchTaxonomy } from "../utils/api";
 
 // Inline styles for the tag editor — kept here to match the file's existing
 // inline-style approach and reuse the .tag visual language from styles.css.
@@ -28,10 +29,72 @@ const tagAddBtnStyle = {
   lineHeight: 1, padding: 0,
 };
 
+// Sensitive-data categories (multi-label). Colours reuse existing theme vars.
+const FLAG_CATEGORIES = [
+  { key: "pii", label: "PII", field: "pii_data", color: "var(--accent)", dim: "var(--accent-dim)" },
+  { key: "npi", label: "NPI", field: "npi_data", color: "var(--amber)",  dim: "var(--amber-dim)" },
+  { key: "pci", label: "PCI", field: "pci_data", color: "var(--red)",    dim: "var(--red-dim)" },
+];
+
+// One-click toggle chip styled like its category badge — lit when on, muted when off.
+// A user corrects what the model flagged; the stats/banner derive from these values.
+function FlagChip({ label, on, color, dim, onToggle }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      title={`Toggle ${label}`}
+      aria-pressed={on}
+      style={{
+        fontFamily: "var(--font-mono)", fontSize: 10, fontWeight: 600,
+        padding: "2px 7px", borderRadius: 4, cursor: "pointer", transition: "all 0.12s",
+        border: `1px solid ${on ? color : "var(--border-mid)"}`,
+        background: on ? dim : "transparent",
+        color: on ? color : "var(--text-3)",
+        opacity: on ? 1 : 0.65,
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
+// Inline classification guide shown top-right of the Review header (from /api/taxonomy).
+function ClassificationGuide() {
+  const [cats, setCats] = useState([]);
+  useEffect(() => { fetchTaxonomy().then(setCats).catch(() => {}); }, []);
+  if (!cats.length) return null;
+  const meta = (key) => FLAG_CATEGORIES.find(c => c.key === key) || { color: "var(--text-2)", dim: "var(--surface-2)" };
+  return (
+    <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", padding: "14px 16px", width: 380, maxWidth: 380, flexShrink: 0, boxShadow: "var(--shadow-sm)" }}>
+      <div style={{ fontSize: 11, fontFamily: "var(--font-mono)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.7px", color: "var(--text-2)", marginBottom: 10 }}>
+        Classification Guide
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {cats.map(c => (
+          <div key={c.key} style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+            <span title={`Examples: ${(c.examples || []).join(", ")} · ${c.standard}`}
+              style={{ fontFamily: "var(--font-mono)", fontSize: 10, fontWeight: 600, padding: "1px 6px", borderRadius: 4, flexShrink: 0, marginTop: 1, color: meta(c.key).color, background: meta(c.key).dim, border: `1px solid ${meta(c.key).color}` }}>
+              {c.label}
+            </span>
+            <span style={{ fontSize: 11.5, color: "var(--text-2)", lineHeight: 1.4 }}>{c.definition}</span>
+          </div>
+        ))}
+      </div>
+      <div style={{ fontSize: 10.5, color: "var(--text-3)", marginTop: 10, lineHeight: 1.4 }}>
+        A column can fall under several categories at once.
+      </div>
+    </div>
+  );
+}
+
+const PAGE_SIZE = 8;
+
 export default function PreviewPage({ metadata, onProceed, onBack }) {
   const [fields, setFields]         = useState(metadata.fields);
   const [editingIdx, setEditingIdx] = useState(null);
   const [search, setSearch]         = useState("");
+  const [page, setPage]             = useState(0);
   const textareaRef = useRef(null);
 
   // Tag editing state: which tag is open for inline edit, its draft text, and
@@ -43,6 +106,11 @@ export default function PreviewPage({ metadata, onProceed, onBack }) {
 
   const updateDescription = (idx, value) =>
     setFields(prev => prev.map((f, i) => i === idx ? { ...f, description: value } : f));
+
+  // Toggle a per-field compliance flag (pci_data / npi_data). Stat chips and the
+  // sensitive-data banner recompute from `fields`, so they update automatically.
+  const setFlag = (idx, key, value) =>
+    setFields(prev => prev.map((f, i) => i === idx ? { ...f, [key]: value } : f));
 
   const handleCellClick = (idx) => {
     setEditingIdx(idx);
@@ -99,74 +167,65 @@ export default function PreviewPage({ metadata, onProceed, onBack }) {
       )
     : fields;
 
-  const pciCount = fields.filter(f => f.pci_data).length;
-  const npiCount = fields.filter(f => f.npi_data).length;
+  const counts = Object.fromEntries(
+    FLAG_CATEGORIES.map(c => [c.key, fields.filter(f => f[c.field]).length])
+  );
+  const detected = FLAG_CATEGORIES.filter(c => counts[c.key] > 0);
+
+  // Pagination — show PAGE_SIZE rows at a time.
+  const totalPages = Math.max(1, Math.ceil(visibleFields.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages - 1);
+  const pageStart = safePage * PAGE_SIZE;
+  const pageFields = visibleFields.slice(pageStart, pageStart + PAGE_SIZE);
 
   return (
     <div>
-      {/* ── Top: title + stats ── */}
+      {/* ── Top: title + inline classification guide ── */}
       <div className="preview-header">
-        <div>
+        <div style={{ flex: 1, minWidth: 0 }}>
           <h1 className="page-heading">Review Metadata</h1>
           <p className="page-sub">
             Inspect all extracted fields.&nbsp;
-            <span style={{ color: "#103a63", fontWeight: 500 }}>Click a description to edit it; click a tag to rename, &times; to remove, or + to add.</span>
+            <span style={{ color: "#103a63", fontWeight: 500 }}>Click a description to edit it; click a tag to rename, &times; to remove, or + to add. Toggle the flag chips to correct a column's classification.</span>
           </p>
         </div>
-        <div className="preview-stats">
-          <div className="stat-chip">
-            <div className="stat-chip-value">{metadata.record_count.toLocaleString()}</div>
-            <div className="stat-chip-label">Records</div>
-          </div>
-          <div className="stat-chip">
-            <div className="stat-chip-value">{metadata.field_count}</div>
-            <div className="stat-chip-label">Fields</div>
-          </div>
-          <div className="stat-chip">
-            <div className="stat-chip-value" style={{ color: "var(--green)" }}>{metadata.file_format.toUpperCase()}</div>
-            <div className="stat-chip-label">Format</div>
-          </div>
-          {pciCount > 0 && (
-            <div className="stat-chip" style={{ borderColor: "rgba(239,68,68,0.4)" }}>
-              <div className="stat-chip-value" style={{ color: "var(--red)" }}>{pciCount}</div>
-              <div className="stat-chip-label">PCI</div>
-            </div>
-          )}
-          {npiCount > 0 && (
-            <div className="stat-chip" style={{ borderColor: "rgba(245,158,11,0.4)" }}>
-              <div className="stat-chip-value" style={{ color: "var(--amber)" }}>{npiCount}</div>
-              <div className="stat-chip-label">NPI</div>
-            </div>
-          )}
-        </div>
+        <ClassificationGuide />
       </div>
 
-      {/* ── PCI / NPI warning banner — only when sensitive fields are detected ── */}
-      {(pciCount > 0 || npiCount > 0) && (
-        <div
-          role="alert"
-          style={{
-            display: "flex",
-            alignItems: "flex-start",
-            gap: 10,
-            background: "var(--amber-dim)",
-            border: "1px solid rgba(183,121,31,0.4)",
-            borderRadius: "var(--radius)",
-            padding: "12px 16px",
-            margin: "0 0 16px 0",
-            fontSize: 13,
-            color: "var(--amber)",
-          }}
-        >
+      {/* ── Stats row (per-category counts) ── */}
+      <div className="preview-stats" style={{ margin: "0 0 16px 0" }}>
+        <div className="stat-chip">
+          <div className="stat-chip-value">{metadata.record_count.toLocaleString()}</div>
+          <div className="stat-chip-label">Records</div>
+        </div>
+        <div className="stat-chip">
+          <div className="stat-chip-value">{metadata.field_count}</div>
+          <div className="stat-chip-label">Fields</div>
+        </div>
+        <div className="stat-chip">
+          <div className="stat-chip-value" style={{ color: "var(--green)" }}>{metadata.file_format.toUpperCase()}</div>
+          <div className="stat-chip-label">Format</div>
+        </div>
+        {detected.map(c => (
+          <div key={c.key} className="stat-chip" style={{ borderColor: c.color }}>
+            <div className="stat-chip-value" style={{ color: c.color }}>{counts[c.key]}</div>
+            <div className="stat-chip-label">{c.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Sensitive-data banner — lists every detected category ── */}
+      {detected.length > 0 && (
+        <div role="alert" style={{ display: "flex", alignItems: "flex-start", gap: 10, background: "var(--amber-dim)", border: "1px solid rgba(183,121,31,0.4)", borderRadius: "var(--radius)", padding: "12px 16px", margin: "0 0 16px 0", fontSize: 13, color: "var(--amber)" }}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 1 }}>
             <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
             <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
           </svg>
           <span>
             <strong>Sensitive data detected.</strong>{" "}
-            {pciCount > 0 && <>{pciCount} field{pciCount > 1 ? "s" : ""} flagged as <strong>PCI</strong> (payment card data)</>}
-            {pciCount > 0 && npiCount > 0 && " · "}
-            {npiCount > 0 && <>{npiCount} field{npiCount > 1 ? "s" : ""} flagged as <strong>NPI</strong> (non-public personal data)</>}
+            {detected.map((c, i) => (
+              <span key={c.key}>{i > 0 ? " · " : ""}{counts[c.key]} <strong>{c.label}</strong></span>
+            ))}
             . Review handling before submitting to the Exchange.
           </span>
         </div>
@@ -182,7 +241,7 @@ export default function PreviewPage({ metadata, onProceed, onBack }) {
           <input
             type="text"
             value={search}
-            onChange={e => setSearch(e.target.value)}
+            onChange={e => { setSearch(e.target.value); setPage(0); }}
             placeholder="Search fields by name, type, tag or description…"
             style={{
               width: "100%",
@@ -233,16 +292,16 @@ export default function PreviewPage({ metadata, onProceed, onBack }) {
           {/* Proportional widths (sum 100%) — with table-layout: fixed these keep
               the table at exactly 100% of its wrapper so it never forces a page scroll. */}
           <colgroup>
-            <col style={{ width: "3%" }} />
+            <col style={{ width: "5%" }} />
             <col style={{ width: "14%" }} />
             <col style={{ width: "8%" }} />
             <col style={{ width: "7%" }} />
             <col style={{ width: "5%" }} />
             <col style={{ width: "6%" }} />
-            <col style={{ width: "16%" }} />
-            <col style={{ width: "11%" }} />
-            <col style={{ width: "22%" }} />
-            <col style={{ width: "8%" }} />
+            <col style={{ width: "15%" }} />
+            <col style={{ width: "10%" }} />
+            <col style={{ width: "20%" }} />
+            <col style={{ width: "10%" }} />
           </colgroup>
           <thead>
             <tr>
@@ -265,12 +324,12 @@ export default function PreviewPage({ metadata, onProceed, onBack }) {
                   No fields match your search.
                 </td>
               </tr>
-            ) : visibleFields.map((field) => {
+            ) : pageFields.map((field) => {
               const realIdx = fields.findIndex(f => f.field_name === field.field_name);
               const isEditing = editingIdx === realIdx;
               return (
                 <tr key={field.field_name}>
-                  <td style={{ color: "var(--text-3)", fontFamily: "var(--font-mono)", fontSize: 11 }}>
+                  <td style={{ color: "var(--text-3)", fontFamily: "var(--font-mono)", fontSize: 11, whiteSpace: "nowrap" }}>
                     {String(realIdx + 1).padStart(2, "0")}
                   </td>
                   <td><span className="field-name">{field.field_name}</span></td>
@@ -405,10 +464,17 @@ export default function PreviewPage({ metadata, onProceed, onBack }) {
                     )}
                   </td>
                   <td>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                      {field.pci_data && <span className="pci-flag">PCI</span>}
-                      {field.npi_data && <span className="npi-flag">NPI</span>}
-                      {!field.pci_data && !field.npi_data && <span style={{ fontSize: 11, color: "var(--text-3)" }}>—</span>}
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 4, maxWidth: 120 }}>
+                      {FLAG_CATEGORIES.map(c => (
+                        <FlagChip
+                          key={c.key}
+                          label={c.label}
+                          color={c.color}
+                          dim={c.dim}
+                          on={!!field[c.field]}
+                          onToggle={() => setFlag(realIdx, c.field, !field[c.field])}
+                        />
+                      ))}
                     </div>
                   </td>
                 </tr>
@@ -417,6 +483,36 @@ export default function PreviewPage({ metadata, onProceed, onBack }) {
           </tbody>
         </table>
       </div>
+
+      {/* ── Pagination (8 rows per page) ── */}
+      {visibleFields.length > PAGE_SIZE && (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 14, fontSize: 13, color: "var(--text-2)" }}>
+          <span style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}>
+            Showing {pageStart + 1}–{Math.min(pageStart + PAGE_SIZE, visibleFields.length)} of {visibleFields.length}
+          </span>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <button
+              className="btn btn-ghost btn-sm"
+              onClick={() => setPage(p => Math.max(0, p - 1))}
+              disabled={safePage === 0}
+              style={{ opacity: safePage === 0 ? 0.5 : 1 }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+              Prev
+            </button>
+            <span style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}>Page {safePage + 1} / {totalPages}</span>
+            <button
+              className="btn btn-ghost btn-sm"
+              onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
+              disabled={safePage >= totalPages - 1}
+              style={{ opacity: safePage >= totalPages - 1 ? 0.5 : 1 }}
+            >
+              Next
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Footer */}
       <div className="btn-group" style={{ marginTop: 28 }}>
