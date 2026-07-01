@@ -47,13 +47,18 @@ public class MetadataEnhancementSkill {
     /** Core object handler used to deserialize Claude's JSON response. */
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    /** Generates format-preserving synthetic samples so real values never reach Claude. */
+    private final SampleSanitizer sampleSanitizer;
+
     public MetadataEnhancementSkill(@Value("${llm.api.key:}") String apiKey,
                                     @Value("${llm.model}") String modelName,
                                     @Value("${llm.effort:MEDIUM}") String effortConfig,
-                                    @Value("${llm.maxTokens:16000}") long maxTokens) {
+                                    @Value("${llm.maxTokens:16000}") long maxTokens,
+                                    SampleSanitizer sampleSanitizer) {
         this.modelName = modelName;
         this.effortConfig = effortConfig;
         this.maxTokens = maxTokens;
+        this.sampleSanitizer = sampleSanitizer;
         // Defer to the local fallback (rather than failing app startup) when no key is present.
         this.client = (apiKey == null || apiKey.isBlank())
                 ? null
@@ -157,14 +162,41 @@ public class MetadataEnhancementSkill {
      */
     private String inferDataType(List<String> samples, String fieldName) {
         String lowerName = fieldName.toLowerCase();
-        if (lowerName.contains("date")) return "date";
-        if (lowerName.contains("progress") || lowerName.contains("amount") || lowerName.contains("days")) return "float";
+        if (lowerName.contains("date") || lowerName.contains("dob")) return "date";
         if (samples.isEmpty()) return "string";
 
-        String sample = samples.get(0);
-        if (sample.equalsIgnoreCase("true") || sample.equalsIgnoreCase("false")) return "boolean";
-        if (sample.matches("-?\\d+(\\.\\d+)?")) return "float";
+        boolean allBoolean = samples.stream()
+                .allMatch(s -> s.equalsIgnoreCase("true") || s.equalsIgnoreCase("false"));
+        if (allBoolean) return "boolean";
+
+        boolean allNumeric = samples.stream().allMatch(s -> s.matches("-?\\d+(\\.\\d+)?"));
+        if (allNumeric) {
+            // Identifiers (account/routing/card/zip/SSN/IDs) look numeric but are
+            // categorical — never treat them as quantities. A leading zero is a
+            // strong identifier signal too (e.g. zip "01234", account "0099...").
+            boolean anyLeadingZero = samples.stream().anyMatch(s -> s.matches("0\\d+"));
+            if (anyLeadingZero || isIdentifierName(lowerName)) return "string";
+            return "float";
+        }
+
+        if (lowerName.contains("amount") || lowerName.contains("balance")
+                || lowerName.contains("price") || lowerName.contains("progress")
+                || lowerName.contains("days")) {
+            return "float";
+        }
         return "string";
+    }
+
+    /** Column names that denote categorical identifiers rather than numeric quantities. */
+    private boolean isIdentifierName(String lowerName) {
+        return lowerName.contains("account") || lowerName.contains("acct")
+                || lowerName.contains("routing") || lowerName.contains("iban")
+                || lowerName.contains("swift") || lowerName.contains("ssn")
+                || lowerName.contains("card") || lowerName.contains("pan")
+                || lowerName.contains("zip") || lowerName.contains("postal")
+                || lowerName.contains("number") || lowerName.contains("code")
+                || lowerName.contains("phone") || lowerName.contains("identifier")
+                || lowerName.equals("id") || lowerName.endsWith("_id");
     }
 
     /**
@@ -174,16 +206,27 @@ public class MetadataEnhancementSkill {
     private void enrichFieldsViaClaude(List<FieldMetadata> localFields, String fileName) throws Exception {
 
         if (client == null) {
-            throw new IllegalStateException("Anthropic API key not configured (ANTHROPIC_API_KEY).");
+            // No API key: mark every field with the degraded 'error' state (keeps the
+            // workflow alive) while the taxonomy still flags likely-sensitive columns.
+            applyLocalFallback(localFields);
+            return;
         }
 
         String systemInstructions = buildSystemPrompt();
         OutputConfig.Effort effort = resolveEffort(effortConfig);
 
         // Batch wide datasets (50+ columns) so the JSON output never exceeds the token budget.
+        // A failure in one batch only degrades that batch — earlier successful batches are kept.
         for (int start = 0; start < localFields.size(); start += BATCH_SIZE) {
-            List<FieldMetadata> batch = localFields.subList(start, Math.min(start + BATCH_SIZE, localFields.size()));
-            enrichBatchViaClaude(batch, fileName, systemInstructions, effort);
+            int end = Math.min(start + BATCH_SIZE, localFields.size());
+            List<FieldMetadata> batch = localFields.subList(start, end);
+            try {
+                enrichBatchViaClaude(batch, fileName, systemInstructions, effort);
+            } catch (Exception e) {
+                log.error("Claude enrichment failed for column batch [{}..{}); marking 'error' for manual editing.",
+                        start, end, e);
+                applyLocalFallback(batch);
+            }
         }
     }
 
@@ -198,7 +241,8 @@ public class MetadataEnhancementSkill {
             Map<String, Object> col = new LinkedHashMap<>();
             col.put("fieldName", f.getFieldName());
             col.put("dataType", f.getDataType());
-            col.put("sampleValues", f.getSampleValues());
+            // Synthetic, format-preserving samples only — never the real banking values.
+            col.put("sampleValues", sampleSanitizer.synthesize(f.getSampleValues()));
             columnsSummary.add(col);
         }
         datasetContext.put("columns", columnsSummary);
@@ -238,6 +282,9 @@ public class MetadataEnhancementSkill {
                 localMeta.setPiiData(cf.piiData());
                 localMeta.setNpiData(cf.npiData());
                 localMeta.setPciData(cf.pciData());
+            } else {
+                // Claude omitted this field — never leave it silently blank/unflagged.
+                markUnenriched(localMeta);
             }
         }
     }
@@ -286,35 +333,30 @@ public class MetadataEnhancementSkill {
     }
 
     /**
-     * Fail-safe handler ensuring the system doesn't crash if Claude is unavailable.
-     * Generates contextual placeholder descriptions and clear tags using local column signatures.
+     * Degraded path when Claude is unavailable for a set of fields (no API key or an
+     * API/network error). Applies the honest {@link #markUnenriched} marker to each.
      */
     private void applyLocalFallback(List<FieldMetadata> fieldList) {
         for (FieldMetadata meta : fieldList) {
-            String name = meta.getFieldName().toLowerCase().trim();
-            if (name.startsWith("column_")) {
-                meta.setDescription("Empty placeholder or unmapped spreadsheet column.");
-                meta.setTags(List.of("empty"));
-            } else if (name.contains("project")) {
-                meta.setDescription("The designated enterprise initiative, client workstream, or program tracking tasks.");
-                meta.setTags(List.of("project-tracking", "operations"));
-            } else if (name.contains("task")) {
-                meta.setDescription("The specific operational action item required to complete the underlying milestone.");
-                meta.setTags(List.of("task-management", "workflow"));
-            } else if (name.contains("assigned")) {
-                meta.setDescription("The corporate identity or resource stakeholder accountable for executing this task.");
-                meta.setTags(List.of("resource-allocation", "identity"));
-            } else {
-                meta.setDescription("Extracted dataset property capturing record inputs for: " + meta.getFieldName());
-                meta.setTags(List.of("dataset-field", "system-extracted"));
-            }
-
-            // Multi-label compliance flags from the curated name-pattern taxonomy.
-            Map<String, Boolean> hits = SensitiveDataTaxonomy.detect(meta.getFieldName());
-            meta.setPiiData(Boolean.TRUE.equals(hits.get("pii")));
-            meta.setNpiData(Boolean.TRUE.equals(hits.get("npi")));
-            meta.setPciData(Boolean.TRUE.equals(hits.get("pci")));
+            markUnenriched(meta);
         }
+    }
+
+    /**
+     * Honest degraded state for a field Claude didn't classify (failed call or an
+     * omitted field): a clear {@code "error"} tag and "No response from Claude"
+     * description so the user knows to review/edit it — while the local name-pattern
+     * taxonomy still flags likely-sensitive columns so compliance counts aren't
+     * silently zeroed for banking data. No business descriptions are fabricated.
+     */
+    private void markUnenriched(FieldMetadata meta) {
+        meta.setDescription("No response from Claude");
+        meta.setTags(new ArrayList<>(List.of("error")));
+
+        Map<String, Boolean> hits = SensitiveDataTaxonomy.detect(meta.getFieldName());
+        meta.setPiiData(Boolean.TRUE.equals(hits.get("pii")));
+        meta.setNpiData(Boolean.TRUE.equals(hits.get("npi")));
+        meta.setPciData(Boolean.TRUE.equals(hits.get("pci")));
     }
 
     /** Strip an enclosing ```json ... ``` (or bare ``` ... ```) fence if one is present. */
