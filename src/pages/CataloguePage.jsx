@@ -190,10 +190,14 @@ export default function CataloguePage({ onUploadNew }) {
 
 // ─── Detail view ───────────────────────────────────────────────────────────
 
+// Field metadata table is paged this many rows at a time (matches PreviewPage).
+const FIELD_PAGE_SIZE = 8;
+
 function CatalogueDetail({ id, onBack }) {
   const [data, setData]       = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState("");
+  const [fieldPage, setFieldPage] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -222,6 +226,13 @@ function CatalogueDetail({ id, onBack }) {
   }
 
   const fields = data.fields || [];
+
+  // Pagination — show FIELD_PAGE_SIZE rows at a time (client-side; fields are
+  // already embedded in the detail response).
+  const totalPages = Math.max(1, Math.ceil(fields.length / FIELD_PAGE_SIZE));
+  const safePage = Math.min(fieldPage, totalPages - 1);
+  const pageStart = safePage * FIELD_PAGE_SIZE;
+  const pageFields = fields.slice(pageStart, pageStart + FIELD_PAGE_SIZE);
 
   return (
     <div>
@@ -280,7 +291,9 @@ function CatalogueDetail({ id, onBack }) {
             </tr>
           </thead>
           <tbody>
-            {fields.map((field, idx) => (
+            {pageFields.map((field, i) => {
+              const idx = pageStart + i;
+              return (
               <tr key={field.field_name + idx}>
                 <td style={{ color: "var(--text-3)", fontFamily: "var(--font-mono)", fontSize: 11 }}>{String(idx + 1).padStart(2, "0")}</td>
                 <td><span className="field-name">{field.field_name}</span></td>
@@ -315,10 +328,41 @@ function CatalogueDetail({ id, onBack }) {
                   </div>
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>
+
+      {/* ── Pagination (FIELD_PAGE_SIZE rows per page) ── */}
+      {fields.length > FIELD_PAGE_SIZE && (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 14, fontSize: 13, color: "var(--text-2)" }}>
+          <span style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}>
+            Showing {pageStart + 1}–{Math.min(pageStart + FIELD_PAGE_SIZE, fields.length)} of {fields.length}
+          </span>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <button
+              className="btn btn-ghost btn-sm"
+              onClick={() => setFieldPage(p => Math.max(0, p - 1))}
+              disabled={safePage === 0}
+              style={{ opacity: safePage === 0 ? 0.5 : 1 }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+              Prev
+            </button>
+            <span style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}>Page {safePage + 1} / {totalPages}</span>
+            <button
+              className="btn btn-ghost btn-sm"
+              onClick={() => setFieldPage(p => Math.min(totalPages - 1, p + 1))}
+              disabled={safePage >= totalPages - 1}
+              style={{ opacity: safePage >= totalPages - 1 ? 0.5 : 1 }}
+            >
+              Next
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

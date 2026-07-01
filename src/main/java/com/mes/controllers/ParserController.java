@@ -2,6 +2,8 @@ package com.mes.controllers;
 
 import com.mes.models.ParsedFile;
 import com.mes.orchestrator.FileParserOrchestrator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -24,6 +26,8 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api")
 public class ParserController {
+
+    private static final Logger log = LoggerFactory.getLogger(ParserController.class);
 
     private final FileParserOrchestrator orchestrator;
     private final MetadataEnhancementSkill metadataEnhancementSkill;
@@ -60,23 +64,33 @@ public class ParserController {
         return ResponseEntity.ok(enhancedResponse);
     }
 
-    /** Empty file or otherwise invalid argument -> 400 Bad Request. */
+    /**
+     * Empty file or otherwise invalid argument -> 400 Bad Request. The exact cause
+     * is logged server-side; the client receives a generic message so internal
+     * details (paths, library internals) are never leaked back over the API.
+     */
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Map<String, Object>> handleBadRequest(IllegalArgumentException ex) {
-        return error(HttpStatus.BAD_REQUEST, ex.getMessage());
+        log.warn("Upload rejected (bad request): {}", ex.getMessage());
+        return error(HttpStatus.BAD_REQUEST, "The uploaded file is empty or invalid.");
     }
 
     /** Unrecognized / unsupported format -> 415 Unsupported Media Type. */
     @ExceptionHandler(UnsupportedOperationException.class)
     public ResponseEntity<Map<String, Object>> handleUnsupported(UnsupportedOperationException ex) {
-        return error(HttpStatus.UNSUPPORTED_MEDIA_TYPE, ex.getMessage());
+        log.warn("Upload rejected (unsupported format): {}", ex.getMessage());
+        return error(HttpStatus.UNSUPPORTED_MEDIA_TYPE,
+                "Unsupported file type. Supported formats: xlsx, xml, csv, json, parquet.");
     }
 
     /** A malformed / unreadable file surfaces as a parsing failure -> 422. */
     @ExceptionHandler({UncheckedIOException.class, IllegalStateException.class, RuntimeException.class})
     public ResponseEntity<Map<String, Object>> handleParsingFailure(RuntimeException ex) {
+        // Full stack trace stays server-side for the maintenance team; the client
+        // only learns the file was unreadable, never why (no internal disclosure).
+        log.error("Failed to parse uploaded file", ex);
         return error(HttpStatus.UNPROCESSABLE_ENTITY,
-                "Failed to parse the uploaded file: " + ex.getMessage());
+                "The file could not be parsed. Please verify it is a valid, well-formed file.");
     }
 
     private ResponseEntity<Map<String, Object>> error(HttpStatus status, String message) {

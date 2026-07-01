@@ -1,11 +1,13 @@
 package com.mes.agents;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.dataformat.xml.XmlFactory;
 import com.fasterxml.jackson.dataformat.xml.XmlMapper;
 import com.mes.models.ParsedFile;
 import com.mes.skills.DataNormalizationSkill;
 import org.springframework.stereotype.Component;
 
+import javax.xml.stream.XMLInputFactory;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -44,10 +46,26 @@ public class XmlParserAgent {
     private static final String FORMAT = "xml";
 
     private final DataNormalizationSkill normalizationSkill;
-    private final XmlMapper xmlMapper = new XmlMapper();
+    private final XmlMapper xmlMapper = secureXmlMapper();
 
     public XmlParserAgent(DataNormalizationSkill normalizationSkill) {
         this.normalizationSkill = normalizationSkill;
+    }
+
+    /**
+     * Builds an {@link XmlMapper} backed by an {@link XMLInputFactory} that has
+     * DTD processing and external-entity resolution disabled, preventing XXE
+     * attacks (external entity expansion, SSRF / local-file disclosure, billion
+     * laughs) on uploaded XML. Banking documents never need DTDs, so disabling
+     * them is safe and closes the vulnerability at the parser level.
+     */
+    private static XmlMapper secureXmlMapper() {
+        XMLInputFactory inputFactory = XMLInputFactory.newFactory();
+        // Reject any DOCTYPE / DTD outright — also neutralizes entity-expansion DoS.
+        inputFactory.setProperty(XMLInputFactory.SUPPORT_DTD, false);
+        // Never resolve external general/parameter entities.
+        inputFactory.setProperty(XMLInputFactory.IS_SUPPORTING_EXTERNAL_ENTITIES, false);
+        return new XmlMapper(new XmlFactory(inputFactory));
     }
 
     public ParsedFile parse(InputStream inputStream) {
